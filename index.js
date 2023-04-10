@@ -8,7 +8,7 @@
 //     "commands": [
 //         {
 //             "match": "/Users/taroyanaka/Desktop/program/q_a/CRUD_endpoint_sql_for_index.js",
-//             "cmd": "cp /Users/taroyanaka/Desktop/program/q_a/CRUD_endpoint_sql_for_index.js /Users/taroyanaka/Desktop/program/q_a_server/index.js"
+//             "cmd": "cp /Users/taroyanaka/Desktop/program/q_a/CRUD_endpoint_sql_for_index.js /Users/taroyanaka/Desktop/program/q_a_server/CRUD_endpoint_sql_for_index.js"
 //         }
 //     ]
 // }
