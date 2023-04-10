@@ -1,6 +1,6 @@
 // https://marketplace.visualstudio.com/items?itemName=emeraldwalk.RunOnSave
 
-// CCCCD
+// CCCCDEEEEEEEEEEE
 // in vscode's 
 // ./.vscode/settings.json
 // {
@@ -30,8 +30,7 @@
 // touch ./q_a.sqlite3
 // cp ../q_a/sql_init_for_index.sql ./sql_init_for_index.sql
 // sqlite3 ./q_a.sqlite3 < ./sql_init_for_index.sql
-// node ./CRUD_endpoint_sql_for_index.js
-// nodemon ./CRUD_endpoint_sql_for_index.js
+// nodemon index.js
 
 
 //  ユーザーのテーブル。カラムはIDはと名前とパスワードと作成日と更新日を持つ。IDは自動的に増加する
@@ -95,7 +94,7 @@ const port = 8000;
 // app.listen(port, 'localhost', () => {
 app.listen(port, "0.0.0.0", () => {
 // app.listen(port, '127.0.0.1', () => {
-    console.log(`App listening!!? at http://localhost:${port}`);
+    console.log(`App listening!! at http://localhost:${port}`);
 });
 
 // '/read_q_a'というGETのリクエストを受け取るエンドポイントで、q_aの全てのidとcontentとcreated_atとupdated_atとuserのnameを返す。contentはJSON.parseする
