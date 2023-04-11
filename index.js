@@ -133,25 +133,28 @@ app.post('/insert_f_i_b', (req, res) => {
 });
 
 
-// '/delete_q_a'というPOSTのリクエストを受け取るエンドポイントで、nameとpasswordを受け取り、nameとpasswordが一致する場合は、q_aのidが一致するものを削除する
+
+// 上記のdelete_q_aをdelete_f_i_bのように書き換える
 app.post('/delete_q_a', (req, res) => {
     const now = new Date().toISOString();
-    const [name, password, id] = [req.body.name, req.body.password, req.body.id];
-    const user = db.prepare('SELECT * FROM users WHERE name = ? AND password = ?').get(name, password);
-    if (user) {
-        const delete_q_a = db.prepare('DELETE FROM q_a WHERE id = ?').run(id);
-// deleteが成功したら、q_aの全てのidとcontentとcreated_atとupdated_atとuserのnameを返す
-        if (delete_q_a.changes) {
-            const read_q_a = db.prepare('SELECT q_a.id, q_a.content, q_a.created_at, q_a.updated_at, users.name FROM q_a INNER JOIN users ON q_a.user_id = users.id').all();
-            res.send(read_q_a);
-        } else {
-            res.send('q_aの削除に失敗しました');
-        };
-    } else {
+    const user = db.prepare('SELECT * FROM users WHERE name = ? AND password = ?').get(req.body.name, req.body.password);
+    user ?
+        db.prepare('DELETE FROM q_a WHERE id = ?').run(req.body.id).changes === 1 ?
+            res.send(db.prepare('SELECT q_a.id, q_a.content, q_a.created_at, q_a.updated_at, users.name FROM q_a INNER JOIN users ON q_a.user_id = users.id').all())
+            :
+            res.send('q_aの削除に失敗しました')
+        :
         res.send('ユーザーが存在しません');
-    }
 });
-
-// '/read_i_t_n'
-// '/insert_i_t_n'
-// '/delete_i_t_n'
+// 上記をinsert_f_i_bのように書き換える
+app.post('/delete_f_i_b', (req, res) => {
+    const now = new Date().toISOString();
+    const user = db.prepare('SELECT * FROM users WHERE name = ? AND password = ?').get(req.body.name, req.body.password);
+    user ?
+        db.prepare('DELETE FROM f_i_b WHERE id = ?').run(req.body.id).changes === 1 ?
+            res.send(db.prepare('SELECT f_i_b.id, f_i_b.content, f_i_b.created_at, f_i_b.updated_at, users.name FROM f_i_b INNER JOIN users ON f_i_b.user_id = users.id').all())
+            :
+            res.send('f_i_bの削除に失敗しました')
+        :
+        res.send('ユーザーが存在しません');
+});
