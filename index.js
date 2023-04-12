@@ -42,6 +42,22 @@
 //   updated_at DATETIME NOT NULL
 // );
 
+// -- ユーザーの権限のテーブル。カラムはIDはと名前と作成日と更新日を持つ。IDは自動的に増加する
+// -- カラムの中には、一般ユーザー、ゲストユーザーがある
+// -- ゲストユーザーはreadだけできる。一般ユーザーはread,write,deleteができる
+// CREATE TABLE user_roles (
+//   id INTEGER PRIMARY KEY AUTOINCREMENT,
+//   user_id INTEGER NOT NULL,
+
+//   role TEXT NOT NULL,
+//   read INTEGER NOT NULL,
+//   write INTEGER NOT NULL,
+//   delete INTEGER NOT NULL, 
+
+//   created_at DATETIME NOT NULL,
+//   updated_at DATETIME NOT NULL
+// );
+
 //  q_aというブログのようなサービスのテーブル。contentと作成日と更新日を持つ。IDは自動的に増加する。usersのIDを外部キーとして持つ
 // CREATE TABLE q_a (
 //   id INTEGER PRIMARY KEY AUTOINCREMENT,
