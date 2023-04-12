@@ -1,5 +1,6 @@
 -- sqlite3で全てのテーブルとそのデータを削除するクエリ
 DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS user_roles;
 DROP TABLE IF EXISTS q_a;
 DROP TABLE IF EXISTS f_i_b;
 DROP TABLE IF EXISTS i_t_n;
@@ -10,6 +11,21 @@ CREATE TABLE users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   password TEXT NOT NULL,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL
+);
+-- ユーザーの権限のテーブル。カラムはIDはと名前と作成日と更新日を持つ。IDは自動的に増加する
+-- カラムの中には、一般ユーザー、ゲストユーザーがある
+-- ゲストユーザーはreadだけできる。一般ユーザーはread,write,deleteができる
+CREATE TABLE user_roles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+
+  role TEXT NOT NULL,
+  read INTEGER NOT NULL,
+  write INTEGER NOT NULL,
+  delete INTEGER NOT NULL, 
+
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL
 );
@@ -43,9 +59,12 @@ CREATE TABLE i_t_n (
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
--- usersにデータを3レコード挿入する
+-- usersにデータを2レコード挿入する
+INSERT INTO users (name, password, created_at, updated_at) VALUES ('PUBLIC', 'delete_24_hours', DATETIME('now'), DATETIME('now'));
 INSERT INTO users (name, password, created_at, updated_at) VALUES ('name1', 'password1', DATETIME('now'), DATETIME('now'));
-INSERT INTO users (name, password, created_at, updated_at) VALUES ('name2', 'password2', DATETIME('now'), DATETIME('now'));
+-- user_rolesにデータを2レコード挿入する
+INSERT INTO user_roles (user_id, role, read, write, delete, created_at, updated_at) VALUES (1, 'guest', 1, 0, 0, DATETIME('now'), DATETIME('now'));
+INSERT INTO user_roles (user_id, role, read, write, delete, created_at, updated_at) VALUES (2, 'user', 1, 1, 1, DATETIME('now'), DATETIME('now'));
 
 
 -- q_aへのデータを10レコード挿入する
