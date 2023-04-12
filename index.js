@@ -115,12 +115,20 @@ app.get('/read_i_t_n', (req, res) => {
     res.send(read_i_t_n);
 });
 
+
+
+
+
+
+
+
+const now = () => new Date().toISOString();
+const user = (REQ) => db.prepare('SELECT * FROM users WHERE name = ? AND password = ?').get(REQ.body.name, REQ.body.password);
+
 // '/insert_q_a'というPOSTのリクエストを受け取るエンドポイントで、nameとpasswordを受け取り、nameとpasswordが一致する場合はそのユーザーのcontentとそのcontentのidとcreated_atとupdated_atを返す。sqlクエリの回数は2回までにする
 app.post('/insert_q_a', (req, res) => {
-    const now = new Date().toISOString();
-    const user = db.prepare('SELECT * FROM users WHERE name = ? AND password = ?').get(req.body.name, req.body.password);
-    user ? 
-        db.prepare('INSERT INTO q_a (user_id, content, created_at, updated_at) VALUES (?, ?, ?, ?)').run(user.id, JSON.stringify(req.body.content), now, now).changes === 1 ?
+    user(req) ? 
+        db.prepare('INSERT INTO q_a (user_id, content, created_at, updated_at) VALUES (?, ?, ?, ?)').run(user(req).id, JSON.stringify(req.body.content), now(), now()).changes === 1 ?
             res.send(db.prepare('SELECT q_a.id, q_a.content, q_a.created_at, q_a.updated_at, users.name FROM q_a INNER JOIN users ON q_a.user_id = users.id').all())
             :
             res.send('q_aの追加に失敗しました')
@@ -129,10 +137,8 @@ app.post('/insert_q_a', (req, res) => {
 });
 // '/insert_f_i_b'というPOSTのリクエストを受け取るエンドポイントで、nameとpasswordを受け取り、nameとpasswordが一致する場合はそのユーザーのcontentとそのcontentのidとcreated_atとupdated_atを返す。sqlクエリの回数は2回までにする
 app.post('/insert_f_i_b', (req, res) => {
-    const now = new Date().toISOString();
-    const user = db.prepare('SELECT * FROM users WHERE name = ? AND password = ?').get(req.body.name, req.body.password);
-    user ?
-        db.prepare('INSERT INTO f_i_b (user_id, content, created_at, updated_at) VALUES (?, ?, ?, ?)').run(user.id, JSON.stringify(req.body.content), now, now).changes === 1 ?
+    user(req) ?
+        db.prepare('INSERT INTO f_i_b (user_id, content, created_at, updated_at) VALUES (?, ?, ?, ?)').run(user(req).id, JSON.stringify(req.body.content), now(), now()).changes === 1 ?
             res.send(db.prepare('SELECT f_i_b.id, f_i_b.content, f_i_b.created_at, f_i_b.updated_at, users.name FROM f_i_b INNER JOIN users ON f_i_b.user_id = users.id').all())
             :
             res.send('f_i_bの追加に失敗しました')
@@ -140,10 +146,8 @@ app.post('/insert_f_i_b', (req, res) => {
         res.send('ユーザーが存在しません');
 });
 app.post('/insert_i_t_n', (req, res) => {
-    const now = new Date().toISOString();
-    const user = db.prepare('SELECT * FROM users WHERE name = ? AND password = ?').get(req.body.name, req.body.password);
-    user ?
-        db.prepare('INSERT INTO i_t_n (user_id, content, created_at, updated_at) VALUES (?, ?, ?, ?)').run(user.id, JSON.stringify(req.body.content), now, now).changes === 1 ?
+    user(req) ?
+        db.prepare('INSERT INTO i_t_n (user_id, content, created_at, updated_at) VALUES (?, ?, ?, ?)').run(user(req).id, JSON.stringify(req.body.content), now(), now()).changes === 1 ?
             res.send(db.prepare('SELECT i_t_n.id, i_t_n.content, i_t_n.created_at, i_t_n.updated_at, users.name FROM i_t_n INNER JOIN users ON i_t_n.user_id = users.id').all())
             :
             res.send('i_t_nの追加に失敗しました')
@@ -155,9 +159,7 @@ app.post('/insert_i_t_n', (req, res) => {
 
 // 上記のdelete_q_aをdelete_f_i_bのように書き換える
 app.post('/delete_q_a', (req, res) => {
-    const now = new Date().toISOString();
-    const user = db.prepare('SELECT * FROM users WHERE name = ? AND password = ?').get(req.body.name, req.body.password);
-    user ?
+    user(req) ?
         db.prepare('DELETE FROM q_a WHERE id = ?').run(req.body.id).changes === 1 ?
             res.send(db.prepare('SELECT q_a.id, q_a.content, q_a.created_at, q_a.updated_at, users.name FROM q_a INNER JOIN users ON q_a.user_id = users.id').all())
             :
@@ -167,9 +169,7 @@ app.post('/delete_q_a', (req, res) => {
 });
 // 上記をinsert_f_i_bのように書き換える
 app.post('/delete_f_i_b', (req, res) => {
-    const now = new Date().toISOString();
-    const user = db.prepare('SELECT * FROM users WHERE name = ? AND password = ?').get(req.body.name, req.body.password);
-    user ?
+    user(req) ?
         db.prepare('DELETE FROM f_i_b WHERE id = ?').run(req.body.id).changes === 1 ?
             res.send(db.prepare('SELECT f_i_b.id, f_i_b.content, f_i_b.created_at, f_i_b.updated_at, users.name FROM f_i_b INNER JOIN users ON f_i_b.user_id = users.id').all())
             :
@@ -178,9 +178,7 @@ app.post('/delete_f_i_b', (req, res) => {
         res.send('ユーザーが存在しません');
 });
 app.post('/delete_i_t_n', (req, res) => {
-    const now = new Date().toISOString();
-    const user = db.prepare('SELECT * FROM users WHERE name = ? AND password = ?').get(req.body.name, req.body.password);
-    user ?
+    user(req) ?
         db.prepare('DELETE FROM i_t_n WHERE id = ?').run(req.body.id).changes === 1 ?
             res.send(db.prepare('SELECT i_t_n.id, i_t_n.content, i_t_n.created_at, i_t_n.updated_at, users.name FROM i_t_n INNER JOIN users ON i_t_n.user_id = users.id').all())
             :
