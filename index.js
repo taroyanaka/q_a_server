@@ -140,20 +140,34 @@ app.get('/read_i_t_n', (req, res) => {
 
 const now = () => new Date().toISOString();
 const user_with_permission = (REQ) => db.prepare('SELECT * FROM users INNER JOIN roles ON users.role_id = roles.id WHERE users.name = ? AND users.password = ?').get(REQ.body.name, REQ.body.password);
+// validator.jsでstringで4000文字以内のバリデーションをかける1行の関数
+const true_if_within_4000_characters = (str) => str.length <= 4000 && typeof str === 'string';
 
 // '/insert_q_a'というPOSTのリクエストを受け取るエンドポイントで、nameとpasswordを受け取り、nameとpasswordが一致する場合はそのユーザーのcontentとそのcontentのidとcreated_atとupdated_atを返す。sqlクエリの回数は2回までにする
 app.post('/insert_q_a', (req, res) => {
+    true_if_within_4000_characters(JSON.stringify(req.body.content)) ? null : res.send('4000文字以内で入力して');
     const user = user_with_permission(req);
-    user ?
-        user.writable === 1 ?
-            db.prepare('INSERT INTO q_a (user_id, content, created_at, updated_at) VALUES (?, ?, ?, ?)').run(user.id, JSON.stringify(req.body.content), now(), now()).changes === 1 ?
-                res.send(db.prepare('SELECT q_a.id, q_a.content, q_a.created_at, q_a.updated_at, users.name FROM q_a INNER JOIN users ON q_a.user_id = users.id').all())
-                :
-                res.send('q_aの追加に失敗しました')
-        :
-        res.send('書き込み権限がありません')
-    :
-    res.send('ユーザーが存在しません');
+    user ? null : res.send('ユーザーが存在しません');
+    user.writable === 1 ? null : res.send('書き込み権限がありません');
+    db.prepare('INSERT INTO q_a (user_id, content, created_at, updated_at) VALUES (?, ?, ?, ?)').run(user.id, JSON.stringify(req.body.content), now(), now()).changes === 1
+        ? res.send(db.prepare('SELECT q_a.id, q_a.content, q_a.created_at, q_a.updated_at, users.name FROM q_a INNER JOIN users ON q_a.user_id = users.id').all()) : res.send('q_aの追加に失敗しました');
+                // res.send(db.prepare('SELECT q_a.id, q_a.content, q_a.created_at, q_a.updated_at, users.name FROM q_a INNER JOIN users ON q_a.user_id = users.id').all())
+                // :
+                // res.send('q_aの追加に失敗しました')
+        // :
+        // res.send('書き込み権限がありません')
+    // :
+    // res.send('ユーザーが存在しません');
+    // user ?
+    //     user.writable === 1 ?
+    //         db.prepare('INSERT INTO q_a (user_id, content, created_at, updated_at) VALUES (?, ?, ?, ?)').run(user.id, JSON.stringify(req.body.content), now(), now()).changes === 1 ?
+    //             res.send(db.prepare('SELECT q_a.id, q_a.content, q_a.created_at, q_a.updated_at, users.name FROM q_a INNER JOIN users ON q_a.user_id = users.id').all())
+    //             :
+    //             res.send('q_aの追加に失敗しました')
+    //     :
+    //     res.send('書き込み権限がありません')
+    // :
+    // res.send('ユーザーが存在しません');
 });
 // '/insert_f_i_b'というPOSTのリクエストを受け取るエンドポイントで、nameとpasswordを受け取り、nameとpasswordが一致する場合はそのユーザーのcontentとそのcontentのidとcreated_atとupdated_atを返す。sqlクエリの回数は2回までにする
 app.post('/insert_f_i_b', (req, res) => {
