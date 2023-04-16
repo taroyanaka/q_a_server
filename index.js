@@ -145,10 +145,12 @@ const user_with_permission = (REQ) => db.prepare('SELECT * FROM users INNER JOIN
 //   => IE => 2048, Firefox => 65536, Chrome => 8192, Safari => 8192
 // (8000文字は長すぎてユーザーにとって不便なので4000文字にする。IEは想定しない)
 const true_if_within_4000_characters = (str) => str.length <= 4000 && typeof str === 'string';
+// true_if_within_4000_charactersを1文字以上4000文字以内のバリデーションをかけるように変更した1行の関数
+const true_if_within_4000_characters_and_not_empty = (str) => str.length > 0 && str.length <= 4000 && typeof str === 'string';
 
 // '/insert_q_a'というPOSTのリクエストを受け取るエンドポイントで、nameとpasswordを受け取り、nameとpasswordが一致する場合はそのユーザーのcontentとそのcontentのidとcreated_atとupdated_atを返す。sqlクエリの回数は2回までにする
 app.post('/insert_q_a', (req, res) => {
-    true_if_within_4000_characters(JSON.stringify(req.body.content)) ? null : res.send('4000文字以内で入力して');
+    true_if_within_4000_characters_and_not_empty(JSON.stringify(req.body.content)) ? null : res.send('4000文字以内で入力して');
     const user = user_with_permission(req);
     user ? null : res.send('ユーザーが存在しません');
     user.writable === 1 ? null : res.send('書き込み権限がありません');
@@ -157,7 +159,7 @@ app.post('/insert_q_a', (req, res) => {
 });
 // '/insert_f_i_b'というPOSTのリクエストを受け取るエンドポイントで、nameとpasswordを受け取り、nameとpasswordが一致する場合はそのユーザーのcontentとそのcontentのidとcreated_atとupdated_atを返す。sqlクエリの回数は2回までにする
 app.post('/insert_f_i_b', (req, res) => {
-    true_if_within_4000_characters(JSON.stringify(req.body.content)) ? null : res.send('4000文字以内で入力して');
+    true_if_within_4000_characters_and_not_empty(JSON.stringify(req.body.content)) ? null : res.send('4000文字以内で入力して');
     const user = user_with_permission(req);
     user ? null : res.send('ユーザーが存在しません');
     user.writable === 1 ? null : res.send('書き込み権限がありません');
@@ -165,7 +167,7 @@ app.post('/insert_f_i_b', (req, res) => {
         ? res.send(db.prepare('SELECT f_i_b.id, f_i_b.content, f_i_b.created_at, f_i_b.updated_at, users.name FROM f_i_b INNER JOIN users ON f_i_b.user_id = users.id').all()) : res.send('f_i_bの追加に失敗しました');    
 });
 app.post('/insert_i_t_n', (req, res) => {
-    true_if_within_4000_characters(JSON.stringify(req.body.content)) ? null : res.send('4000文字以内で入力して');
+    true_if_within_4000_characters_and_not_empty(JSON.stringify(req.body.content)) ? null : res.send('4000文字以内で入力して');
     const user = user_with_permission(req);
     user ? null : res.send('ユーザーが存在しません');
     user.writable === 1 ? null : res.send('書き込み権限がありません');
