@@ -151,6 +151,9 @@ const user_with_permission = (REQ) => db.prepare('SELECT * FROM users INNER JOIN
 const true_if_within_4000_characters = (str) => str.length <= 4000 && typeof str === 'string';
 // true_if_within_4000_charactersを1文字以上4000文字以内のバリデーションをかけるように変更した1行の関数
 const true_if_within_4000_characters_and_not_empty = (str) => str.length > 0 && str.length <= 4000 && typeof str === 'string';
+// expressの一般的なエラーのレスポンス。引数としてエラー文字列を含めて呼び出す
+const error_response = (res, error_message) => res.status(400).json({ error: error_message });
+
 
 
 // https://taroyanaka.github.io/javascript/etc/dup_replacer.html
@@ -168,21 +171,29 @@ app.get('/read_f_c', (req, res) => {
 });
 // これは'/insert_f_c'というPOSTのリクエストを受け取るエンドポイントで、f_cにcontent1とcontent2を追加する。contentはJSON.stringifyする
 app.post('/insert_f_c', (req, res) => {
-    true_if_within_4000_characters_and_not_empty(JSON.stringify(req.body.content_1 + req.body_content_2)) ? null : res.send('4000文字以内で入力して');
+    true_if_within_4000_characters_and_not_empty(JSON.stringify(req.body.content_1)) ? null : error_response(res, '4000文字以内で入力して');
+    true_if_within_4000_characters_and_not_empty(JSON.stringify(req.body.content_2)) ? null : error_response(res, '4000文字以内で入力して');
+    true_if_within_4000_characters_and_not_empty(JSON.stringify(req.body.content_1 + req.body.content_2)) ? null : error_response(res, '4000文字以内で入力して');
     const user = user_with_permission(req);
-    user ? null : res.send('ユーザーが存在しません');
-    user.writable === 1 ? null : res.send('書き込み権限がありません');
+    user ? null : error_response(res, 'ユーザーが存在しません');
+    user.writable === 1 ? null : error_response(res, '書き込み権限がありません');
     db.prepare('INSERT INTO f_c (user_id, content_1, content_2, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(user.id, req.body.content_1, req.body.content_2, now(), now()).changes === 1
-        ? res.send(db.prepare('SELECT f_c.id, f_c.content_1, f_c.content_2, f_c.created_at, f_c.updated_at, users.name FROM f_c INNER JOIN users ON f_c.user_id = users.id').all()) : res.send('f_cの追加に失敗しました');
+        ? error_response(res, db.prepare('SELECT f_c.id, f_c.content_1, f_c.content_2, f_c.created_at, f_c.updated_at, users.name FROM f_c INNER JOIN users ON f_c.user_id = users.id').all()) : error_response(res, 'f_cの追加に失敗しました');
 });
 // これは'/delete_f_c'というPOSTのリクエストを受け取るエンドポイントで、f_cのidを指定して削除する
 app.post('/delete_f_c', (req, res) => {
     const user = user_with_permission(req);
-    user ? null : res.send('ユーザーが存在しません');
-    user.deletable === 1 ? null : res.send('削除権限がありません');
+    user ? null : error_response(res, 'ユーザーが存在しません');
+    user.deletable === 1 ? null : error_response(res, '削除権限がありません');
     db.prepare('DELETE FROM f_c WHERE id = ?').run(req.body.id).changes === 1
-        ? res.send(db.prepare('SELECT f_c.id, f_c.content_1, f_c.content_2, f_c.created_at, f_c.updated_at, users.name FROM f_c INNER JOIN users ON f_c.user_id = users.id').all()) : res.send('f_cの削除に失敗しました');
+        ? error_response(res, db.prepare('SELECT f_c.id, f_c.content_1, f_c.content_2, f_c.created_at, f_c.updated_at, users.name FROM f_c INNER JOIN users ON f_c.user_id = users.id').all()) : error_response(res, 'f_cの削除に失敗しました');
 });
+
+
+
+
+
+
 
 // '/read_f_i_b'というGETのリクエストを受け取るエンドポイントで、f_i_bの全てのidとcontent1とcontent2とcreated_atとupdated_atとuserのnameを返す。contentはJSON.parseする
 app.get('/read_f_i_b', (req, res) => {
@@ -191,21 +202,27 @@ app.get('/read_f_i_b', (req, res) => {
 });
 // これは'/insert_f_i_b'というPOSTのリクエストを受け取るエンドポイントで、f_i_bにcontent1とcontent2を追加する。contentはJSON.stringifyする
 app.post('/insert_f_i_b', (req, res) => {
-    true_if_within_4000_characters_and_not_empty(JSON.stringify(req.body.content_1 + req.body_content_2)) ? null : res.send('4000文字以内で入力して');
+    true_if_within_4000_characters_and_not_empty(JSON.stringify(req.body.content_1)) ? null : error_response(res, '4000文字以内で入力して');
+    true_if_within_4000_characters_and_not_empty(JSON.stringify(req.body.content_2)) ? null : error_response(res, '4000文字以内で入力して');
+    true_if_within_4000_characters_and_not_empty(JSON.stringify(req.body.content_1 + req.body.content_2)) ? null : error_response(res, '4000文字以内で入力して');
     const user = user_with_permission(req);
-    user ? null : res.send('ユーザーが存在しません');
-    user.writable === 1 ? null : res.send('書き込み権限がありません');
+    user ? null : error_response(res, 'ユーザーが存在しません');
+    user.writable === 1 ? null : error_response(res, '書き込み権限がありません');
     db.prepare('INSERT INTO f_i_b (user_id, content_1, content_2, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(user.id, req.body.content_1, req.body.content_2, now(), now()).changes === 1
-        ? res.send(db.prepare('SELECT f_i_b.id, f_i_b.content_1, f_i_b.content_2, f_i_b.created_at, f_i_b.updated_at, users.name FROM f_i_b INNER JOIN users ON f_i_b.user_id = users.id').all()) : res.send('f_i_bの追加に失敗しました');
+        ? error_response(res, db.prepare('SELECT f_i_b.id, f_i_b.content_1, f_i_b.content_2, f_i_b.created_at, f_i_b.updated_at, users.name FROM f_i_b INNER JOIN users ON f_i_b.user_id = users.id').all()) : error_response(res, 'f_i_bの追加に失敗しました');
 });
 // これは'/delete_f_i_b'というPOSTのリクエストを受け取るエンドポイントで、f_i_bのidを指定して削除する
 app.post('/delete_f_i_b', (req, res) => {
     const user = user_with_permission(req);
-    user ? null : res.send('ユーザーが存在しません');
-    user.deletable === 1 ? null : res.send('削除権限がありません');
+    user ? null : error_response(res, 'ユーザーが存在しません');
+    user.deletable === 1 ? null : error_response(res, '削除権限がありません');
     db.prepare('DELETE FROM f_i_b WHERE id = ?').run(req.body.id).changes === 1
-        ? res.send(db.prepare('SELECT f_i_b.id, f_i_b.content_1, f_i_b.content_2, f_i_b.created_at, f_i_b.updated_at, users.name FROM f_i_b INNER JOIN users ON f_i_b.user_id = users.id').all()) : res.send('f_i_bの削除に失敗しました');
+        ? error_response(res, db.prepare('SELECT f_i_b.id, f_i_b.content_1, f_i_b.content_2, f_i_b.created_at, f_i_b.updated_at, users.name FROM f_i_b INNER JOIN users ON f_i_b.user_id = users.id').all()) : error_response(res, 'f_i_bの削除に失敗しました');
 });
+
+
+
+
 
 // '/read_i_t_n'というGETのリクエストを受け取るエンドポイントで、i_t_nの全てのidとcontent1とcontent2とcreated_atとupdated_atとuserのnameを返す。contentはJSON.parseする
 app.get('/read_i_t_n', (req, res) => {
@@ -214,18 +231,20 @@ app.get('/read_i_t_n', (req, res) => {
 });
 // これは'/insert_i_t_n'というPOSTのリクエストを受け取るエンドポイントで、i_t_nにcontent1とcontent2を追加する。contentはJSON.stringifyする
 app.post('/insert_i_t_n', (req, res) => {
-    true_if_within_4000_characters_and_not_empty(JSON.stringify(req.body.content_1 + req.body_content_2)) ? null : res.send('4000文字以内で入力して');
+    true_if_within_4000_characters_and_not_empty(JSON.stringify(req.body.content_1)) ? null : error_response(res, '4000文字以内で入力して');
+    true_if_within_4000_characters_and_not_empty(JSON.stringify(req.body.content_2)) ? null : error_response(res, '4000文字以内で入力して');
+    true_if_within_4000_characters_and_not_empty(JSON.stringify(req.body.content_1 + req.body.content_2)) ? null : error_response(res, '4000文字以内で入力して');
     const user = user_with_permission(req);
-    user ? null : res.send('ユーザーが存在しません');
-    user.writable === 1 ? null : res.send('書き込み権限がありません');
+    user ? null : error_response(res, 'ユーザーが存在しません');
+    user.writable === 1 ? null : error_response(res, '書き込み権限がありません');
     db.prepare('INSERT INTO i_t_n (user_id, content_1, content_2, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(user.id, req.body.content_1, req.body.content_2, now(), now()).changes === 1
-        ? res.send(db.prepare('SELECT i_t_n.id, i_t_n.content_1, i_t_n.content_2, i_t_n.created_at, i_t_n.updated_at, users.name FROM i_t_n INNER JOIN users ON i_t_n.user_id = users.id').all()) : res.send('i_t_nの追加に失敗しました');
+        ? error_response(res, db.prepare('SELECT i_t_n.id, i_t_n.content_1, i_t_n.content_2, i_t_n.created_at, i_t_n.updated_at, users.name FROM i_t_n INNER JOIN users ON i_t_n.user_id = users.id').all()) : error_response(res, 'i_t_nの追加に失敗しました');
 });
 // これは'/delete_i_t_n'というPOSTのリクエストを受け取るエンドポイントで、i_t_nのidを指定して削除する
 app.post('/delete_i_t_n', (req, res) => {
     const user = user_with_permission(req);
-    user ? null : res.send('ユーザーが存在しません');
-    user.deletable === 1 ? null : res.send('削除権限がありません');
+    user ? null : error_response(res, 'ユーザーが存在しません');
+    user.deletable === 1 ? null : error_response(res, '削除権限がありません');
     db.prepare('DELETE FROM i_t_n WHERE id = ?').run(req.body.id).changes === 1
-        ? res.send(db.prepare('SELECT i_t_n.id, i_t_n.content_1, i_t_n.content_2, i_t_n.created_at, i_t_n.updated_at, users.name FROM i_t_n INNER JOIN users ON i_t_n.user_id = users.id').all()) : res.send('i_t_nの削除に失敗しました');
+        ? error_response(res, db.prepare('SELECT i_t_n.id, i_t_n.content_1, i_t_n.content_2, i_t_n.created_at, i_t_n.updated_at, users.name FROM i_t_n INNER JOIN users ON i_t_n.user_id = users.id').all()) : error_response(res, 'i_t_nの削除に失敗しました');
 });
