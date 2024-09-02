@@ -1,3 +1,5 @@
+const hashing = false;
+
 const express = require('express');
 const sqlite = require('better-sqlite3');
 const crypto = require('crypto');
@@ -74,7 +76,7 @@ CREATE TABLE survey_access (
 -- 1. users テーブルにサンプルデータを挿入
 INSERT INTO users (uid, role) VALUES ('user1_uid', 'requester');
 INSERT INTO users (uid, role) VALUES ('user2_uid', 'respondent');
-INSERT INTO users (uid, role) VALUES ('5860faf02b6bc6222ba5aca523560f0e364ccd8b67bee486fe8bf7c01d492ccb', 'admin');
+INSERT INTO users (uid, role) VALUES ('user3_uid', 'admin');
 INSERT INTO users (uid, role) VALUES ('user4_uid', 'respondent');
 
 -- 2. surveys テーブルにサンプルデータを挿入
@@ -118,77 +120,6 @@ app.post('/survey/init-database', (req, res) => {
     }
 });
 
-app.post('/survey/init-database2', (req, res) => {
-    const { password } = req.body;
-    if (password === 'init') {
-        try {
-
-
-            // usersへのサンプルデータを5レコード
-            const insert = db.prepare('INSERT INTO users (uid, role) VALUES (?, ?)');
-
-            const insertMany = db.transaction((users) => {
-                for (const user of users) insert.run(user.uid, user.role);
-            });
-
-            insertMany([
-                { uid: 'user1', role: 'requester' },
-                { uid: 'user2', role: 'respondent' },
-                { uid: '5860faf02b6bc6222ba5aca523560f0e364ccd8b67bee486fe8bf7c01d492ccb', role: 'admin' },
-                { uid: 'user4', role: 'requester' },
-                { uid: 'user5', role: 'respondent' },
-            ]);
-            res.status(200).json({ message: 'Database initialized successfully.' });
-        } catch (error) {
-            res.status(500).json({ error: 'Failed to initialize database.' });
-        }
-    } else {
-        res.status(403).json({ error: 'Unauthorized: Invalid password.' });
-    }
-});
-
-app.post('/survey/init-database3', (req, res) => {
-    const { password } = req.body;
-    if (password === 'init') {
-        try {
-            db.exec(`
-                INSERT INTO surveys (title, description, price, requester_id) VALUES 
-                ('Customer Satisfaction Survey', 'A survey to measure customer satisfaction.', 100.00, 1),
-                ('Employee Engagement Survey', 'A survey to gauge employee engagement.', 200.00, 1);
-            `);
-        
-            db.exec(`
-                INSERT INTO questions (survey_id, question_text) VALUES 
-                (1, 'How satisfied are you with our service?'),
-                (1, 'How likely are you to recommend us to a friend?'),
-                (2, 'How engaged do you feel at work?'),
-                (2, 'How satisfied are you with your current role?');
-            `);
-        
-            db.exec(`
-                INSERT INTO responses (question_id, respondent_id, response_value) VALUES 
-                (1, 2, 4), -- user2が質問1に回答
-                (2, 2, 5), -- user2が質問2に回答
-                (3, 4, 3), -- user4が質問3に回答
-                (4, 4, 2); -- user4が質問4に回答
-            `);
-        
-            db.exec(`
-                INSERT INTO survey_access (survey_id, user_id) VALUES 
-                (1, 1), -- user1がアンケート1にアクセス可能
-                (1, 3), -- user3がアンケート1にアクセス可能（管理者）
-                (2, 1), -- user1がアンケート2にアクセス可能
-                (2, 3); -- user3がアンケート2にアクセス可能（管理者）
-            `);
-        
-            res.status(200).json({ message: 'Database initialized successfully.' });
-        } catch (error) {
-            res.status(500).json({ error: 'Failed to initialize database.' });
-        }
-    } else {
-        res.status(403).json({ error: 'Unauthorized: Invalid password.' });
-    }
-});
 
 app.post('/survey/create', (req, res) => {
     const { uid, title, description, price } = req.body;
@@ -198,7 +129,7 @@ app.post('/survey/create', (req, res) => {
     }
 
     const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
-    const requester = db.prepare('SELECT id FROM users WHERE uid = ? AND role = ?').get(hashedUid, 'requester');
+    const requester = db.prepare('SELECT id FROM users WHERE uid = ? AND role = ?').get(hashing === true ?hashedUid:uid, 'requester');
 
     if (!requester) {
         return res.status(403).json({ error: 'Unauthorized: Invalid requester UID.' });
@@ -225,7 +156,7 @@ app.post('/survey/:surveyId/add-question', (req, res) => {
     }
 
     const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
-    const requester = db.prepare('SELECT s.id FROM surveys s JOIN users u ON s.requester_id = u.id WHERE u.uid = ? AND s.id = ? AND u.role = ?').get(hashedUid, surveyId, 'requester');
+    const requester = db.prepare('SELECT s.id FROM surveys s JOIN users u ON s.requester_id = u.id WHERE u.uid = ? AND s.id = ? AND u.role = ?').get(hashing === true ?hashedUid:uid, surveyId, 'requester');
 
     if (!requester) {
         return res.status(403).json({ error: 'Unauthorized: Invalid requester UID or survey not found.' });
@@ -246,7 +177,7 @@ app.post('/survey/read', (req, res) => {
 
     try {
         const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
-        const user = db.prepare('SELECT id FROM users WHERE uid = ?').get(hashedUid);
+        const user = db.prepare('SELECT id FROM users WHERE uid = ?').get(hashing === true ?hashedUid:uid);
 
         if (!user) {
             return res.status(403).json({ error: 'Unauthorized: Invalid UID.' });
@@ -274,7 +205,7 @@ app.post('/survey/:questionId/respond', (req, res) => {
     }
 
     const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
-    const respondent = db.prepare('SELECT id FROM users WHERE uid = ? AND role = ?').get(hashedUid, 'respondent');
+    const respondent = db.prepare('SELECT id FROM users WHERE uid = ? AND role = ?').get(hashing === true ?hashedUid:uid, 'respondent');
 
     if (!respondent) {
         return res.status(403).json({ error: 'Unauthorized: Invalid respondent UID.' });
@@ -300,7 +231,7 @@ app.post('/survey/update', (req, res) => {
     }
 
     const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
-    const requester = db.prepare('SELECT s.id FROM surveys s JOIN users u ON s.requester_id = u.id WHERE u.uid = ? AND s.id = ? AND u.role = ?').get(hashedUid, survey_id, 'requester');
+    const requester = db.prepare('SELECT s.id FROM surveys s JOIN users u ON s.requester_id = u.id WHERE u.uid = ? AND s.id = ? AND u.role = ?').get(hashing === true ?hashedUid:uid, survey_id, 'requester');
 
     if (!requester) {
         return res.status(403).json({ error: 'Unauthorized: Invalid requester UID or survey not found.' });
@@ -324,7 +255,7 @@ app.post('/survey/delete', (req, res) => {
     }
 
     const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
-    const requester = db.prepare('SELECT s.id FROM surveys s JOIN users u ON s.requester_id = u.id WHERE u.uid = ? AND s.id = ? AND u.role = ?').get(hashedUid, survey_id, 'requester');
+    const requester = db.prepare('SELECT s.id FROM surveys s JOIN users u ON s.requester_id = u.id WHERE u.uid = ? AND s.id = ? AND u.role = ?').get(hashing === true ?hashedUid:uid, survey_id, 'requester');
 
     if (!requester) {
         return res.status(403).json({ error: 'Unauthorized: Invalid requester UID or survey not found.' });
@@ -346,7 +277,8 @@ app.post('/survey/responses', (req, res) => {
 
     const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
     console.log(hashedUid);
-    const admin = db.prepare('SELECT id FROM users WHERE uid = ? AND role = ?').get(hashedUid, 'admin');
+    const admin = db.prepare('SELECT id FROM users WHERE uid = ? AND role = ?').get(hashing === true ?hashedUid:uid, 'admin');
+    console.log(hashing === true ?hashedUid:uid);
     console.log(admin);
 
     if (!admin) {
@@ -377,7 +309,7 @@ app.post('/register', (req, res) => {
 
     try {
         const stmt = db.prepare('INSERT INTO users (uid, role) VALUES (?, ?)');
-        stmt.run(hashedUid, role);
+        stmt.run(hashing === true ?hashedUid:uid, role);
 
         res.status(201).json({ message: 'User registered successfully.' });
     } catch (error) {
