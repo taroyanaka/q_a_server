@@ -111,9 +111,9 @@ const insertTestData_app5 = () => {
             respondent_uid: 'user3',
             answers: JSON.stringify(['Answer 3', 'Answer 4'])
         },
-        // user1のresponse、user2のsurveyに対するresponse
+        // user2のsurveyに対するuser1のresponse
         {
-            survey_id: 1,
+            survey_id: 2,
             respondent_uid: 'user1',
             answers: JSON.stringify(['Answer 5', 'Answer 6'])
         },
@@ -146,8 +146,8 @@ app.post('/app5/init-database', (req, res) => {
     }
 });
 
-// initializeDatabase_app5();
-// insertTestData_app5();
+initializeDatabase_app5();
+insertTestData_app5();
 
 app.post('/app5/insert-test-data', (req, res) => {
     const { password } = req.body;
@@ -166,9 +166,25 @@ app.post('/app5/insert-test-data', (req, res) => {
 
 app.post('/app5/surveys_and_responses/read_all', (req, res) => {
 try {
-const readAllSurveys = () => {
-    const stmt = db_for_app5.prepare('SELECT * FROM surveys');
-    return stmt.all();
+const readAllSurveysAndResponses = () => {
+    const stmt = db_for_app5.prepare(`
+        SELECT surveys.*, responses.answers 
+        FROM surveys 
+        LEFT JOIN responses ON surveys.id = responses.survey_id
+    `);
+    const res1 = stmt.all();
+    // 同じidのsurveyが複数回表示されるのを防ぐために、idをキーにしてanswersを配列にまとめる
+    const surveys = res1.reduce((acc, cur) => {
+        if (!acc[cur.id]) {
+            acc[cur.id] = { ...cur, answers: [] };
+        }
+        if (cur.answers) {
+            acc[cur.id].answers.push(cur.answers);
+        }
+        return acc;
+    }, {});
+    return Object.values(surveys);
+
 };
 // ログインしていない場合でも表示するためにuidを受け取っていない場合はreadAllSurveysのみを返す
 if (!req.body.uid) {
@@ -199,7 +215,18 @@ if (!req.body.uid) {
                 LEFT JOIN responses ON surveys.id = responses.survey_id 
                 WHERE surveys.user_id = (SELECT id FROM users WHERE uid = ?)
             `);
-            return stmt.all(hashedUid);
+            // 同じidのsurveyが複数回表示されるのを防ぐために、idをキーにしてanswersを配列にまとめる
+            const res2 = stmt.all(hashedUid);
+            const surveys = res2.reduce((acc, cur) => {
+                if (!acc[cur.id]) {
+                    acc[cur.id] = { ...cur, answers: [] };
+                }
+                if (cur.answers) {
+                    acc[cur.id].answers.push(cur.answers);
+                }
+                return acc;
+            }, {});
+            return Object.values(surveys);
         };
         const readMyResponses = (hashedUid) => {
             const stmt = db_for_app5.prepare(`
@@ -211,12 +238,12 @@ if (!req.body.uid) {
             return stmt.all(hashedUid);
         };
     
-        const result_1 = readAllSurveys();
+        const result_1 = readAllSurveysAndResponses();
         const result_2 = readMySurveysAndResponses(hashedUid);
         const result_3 = readMyResponses(hashedUid);
         // console.log(result_1);
         // console.log(result_2);
-        console.log(result_3);
+        // console.log(result_3);
         res.status(200).json({ surveys: result_1, mySurveysAndResponses: result_2, myResponses: result_3 });
 }
 } catch (error) {
