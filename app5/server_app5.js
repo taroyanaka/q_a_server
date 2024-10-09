@@ -174,7 +174,7 @@ const readAllSurveysAndResponses = () => {
         LEFT JOIN responses ON surveys.id = responses.survey_id
     `);
     const res1 = stmt.all();
-    console.log(res1);
+    // console.log(res1);
 
 
     // 同じidのsurveyが複数回表示されるのを防ぐために、idをキーにしてanswersを配列にまとめる
@@ -330,7 +330,8 @@ app.post('/app5/responses/create', (req, res) => {
         return crypto.createHash('sha256').update(uid).digest('hex');
     };
 
-    const { uid, survey_id, answers } = req.body;
+    const { uid, survey_id, } = req.body;
+    let { answers } = req.body;
 
     if (typeof uid !== 'string' || uid.length < 1 || uid.length > 50) {
         return res.status(400).json({ error: 'Invalid uid. It must be a string between 1 and 50 characters.' });
@@ -340,8 +341,25 @@ app.post('/app5/responses/create', (req, res) => {
         return res.status(400).json({ error: 'Invalid survey_id. It must be a number.' });
     }
 
-    if (!Array.isArray(answers) || answers.length === 0 || answers.some(a => typeof a !== 'string' || a.length < 1 || a.length > 1000)) {
-        return res.status(400).json({ error: 'Invalid answers. It must be an array of strings, each between 1 and 1000 characters.' });
+    answers = answers.split('\n');
+    if (!Array.isArray(answers)) {
+        return res.status(400).json({ error: 'Invalid answers. It must be an array.' });
+    }
+
+    if (answers.length === 0) {
+        return res.status(400).json({ error: 'Invalid answers. The array must contain at least one answer.' });
+    }
+    
+    if (answers.some(a => typeof a !== 'string')) {
+        return res.status(400).json({ error: 'Invalid answers. Each answer must be a string.' });
+    }
+    
+    if (answers.some(a => a.length < 1)) {
+        return res.status(400).json({ error: 'Invalid answers. Each answer must contain at least one character.' });
+    }
+    
+    if (answers.some(a => a.length > 1000)) {
+        return res.status(400).json({ error: 'Invalid answers. Each answer must not exceed 1000 characters.' });
     }
 
     const hashedUid = hashUid(uid);
