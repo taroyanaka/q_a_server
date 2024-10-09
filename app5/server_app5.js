@@ -146,8 +146,8 @@ app.post('/app5/init-database', (req, res) => {
     }
 });
 
-initializeDatabase_app5();
-insertTestData_app5();
+// initializeDatabase_app5();
+// insertTestData_app5();
 
 app.post('/app5/insert-test-data', (req, res) => {
     const { password } = req.body;
@@ -167,12 +167,16 @@ app.post('/app5/insert-test-data', (req, res) => {
 app.post('/app5/surveys_and_responses/read_all', (req, res) => {
 try {
 const readAllSurveysAndResponses = () => {
+    // 回答のないsurveyも含めて全て取得するため、LEFT JOINを使用
     const stmt = db_for_app5.prepare(`
         SELECT surveys.*, responses.answers 
         FROM surveys 
         LEFT JOIN responses ON surveys.id = responses.survey_id
     `);
     const res1 = stmt.all();
+    console.log(res1);
+
+
     // 同じidのsurveyが複数回表示されるのを防ぐために、idをキーにしてanswersを配列にまとめる
     const surveys = res1.reduce((acc, cur) => {
         if (!acc[cur.id]) {
@@ -205,8 +209,8 @@ if (!req.body.uid) {
             return crypto.createHash('sha256').update(uid).digest('hex');
         };
     
-        // const hashedUid = hashUid(uid);
-        const hashedUid = uid;
+        const hashedUid = hashUid(uid);
+        // const hashedUid = uid;
     
         const readMySurveysAndResponses = (hashedUid) => {
             const stmt = db_for_app5.prepare(`
@@ -237,14 +241,18 @@ if (!req.body.uid) {
             `);
             return stmt.all(hashedUid);
         };
-    
+        // uidからidを取得する
+        const userCheckStmt = db_for_app5.prepare('SELECT id FROM users WHERE uid = ?');
+        const user = userCheckStmt.get(hashedUid);
+        const id = user.id || null;
+
         const result_1 = readAllSurveysAndResponses();
         const result_2 = readMySurveysAndResponses(hashedUid);
         const result_3 = readMyResponses(hashedUid);
         // console.log(result_1);
         // console.log(result_2);
         // console.log(result_3);
-        res.status(200).json({ surveys: result_1, mySurveysAndResponses: result_2, myResponses: result_3 });
+        res.status(200).json({ id: id ,surveys: result_1, mySurveysAndResponses: result_2, myResponses: result_3 });
 }
 } catch (error) {
     res.status(500).json({ error: 'Failed to read data.' });
@@ -252,64 +260,6 @@ if (!req.body.uid) {
 }
 });
 
-// app.get('/app5/surveys_and_responses/read_all', (req, res) => {
-//     try {
-//         const readAllSurveys = () => {
-//             const stmt = db_for_app5.prepare('SELECT * FROM surveys');
-//             return stmt.all();
-//         };
-
-//         if (!req.query.uid) {
-//             const result_1 = readAllSurveys();
-//             res.status(200).json({ surveys: result_1 });
-//         } else {
-//             const { uid } = req.query;
-//             if (typeof uid !== 'string' || uid.length < 1 || uid.length > 50) {
-//                 return res.status(400).json({ error: 'Invalid uid. It must be a string between 1 and 50 characters.' });
-//             }
-
-//             const stmt = db_for_app5.prepare('SELECT COUNT(*) AS count FROM users WHERE uid = ?');
-//             const result = stmt.get(uid);
-//             if (result.count === 0) {
-//                 throw new Error('UID does not exist.');
-//             }
-
-//             const hashUid = (uid) => {
-//                 return crypto.createHash('sha256').update(uid).digest('hex');
-//             };
-
-//             const hashedUid = hashUid(uid);
-
-//             const readMySurveysAndResponses = (hashedUid) => {
-//                 const stmt = db_for_app5.prepare(`
-//                     SELECT surveys.*, responses.answers 
-//                     FROM surveys 
-//                     LEFT JOIN responses ON surveys.id = responses.survey_id 
-//                     WHERE surveys.user_id = (SELECT id FROM users WHERE uid = ?)
-//                 `);
-//                 return stmt.all(hashedUid);
-//             };
-
-//             const readMyResponses = (hashedUid) => {
-//                 const stmt = db_for_app5.prepare(`
-//                     SELECT surveys.*, responses.answers 
-//                     FROM responses 
-//                     LEFT JOIN surveys ON responses.survey_id = surveys.id 
-//                     WHERE responses.respondent_uid = ?
-//                 `);
-//                 return stmt.all(hashedUid);
-//             };
-
-//             const result_1 = readAllSurveys();
-//             const result_2 = readMySurveysAndResponses(hashedUid);
-//             const result_3 = readMyResponses(hashedUid);
-//             res.status(200).json({ surveys: result_1, mySurveysAndResponses: result_2, myResponses: result_3 });
-//         }
-//     } catch (error) {
-//         res.status(500).json({ error: 'Failed to read data.' });
-//     }
-// });
-    
 app.post('/app5/surveys/create', (req, res) => {
     const hashUid = (uid) => {
         return crypto.createHash('sha256').update(uid).digest('hex');
@@ -333,16 +283,33 @@ app.post('/app5/surveys/create', (req, res) => {
         return res.status(400).json({ error: 'Invalid survey_price. It must be a number between 100 and 10000, in increments of 100.' });
     }
 
-    if (!Array.isArray(questions) || questions.length === 0 || questions.some(q => typeof q !== 'string' || q.length < 1 || q.length > 1000)) {
-        return res.status(400).json({ error: 'Invalid questions. It must be an array of strings, each between 1 and 1000 characters.' });
-    }
 
-    const hashedUid = hashUid(uid);
+if (!Array.isArray(questions)) return res.status(400).json({ error: 'Invalid questions. It must be an array.' });
+if (questions.length === 0) return res.status(400).json({ error: 'Invalid questions. It must contain at least one question.' });
+if (questions.some(q => typeof q !== 'string')) return res.status(400).json({ error: 'Invalid questions. All questions must be strings.' });
+if (questions.some(q => q.length < 1)) return res.status(400).json({ error: 'Invalid questions. Each question must contain at least one character.' });
+if (questions.some(q => q.length > 1000)) return res.status(400).json({ error: 'Invalid questions. Each question must not exceed 1000 characters.' });
+    
 
-    const stmt = db_for_app5.prepare('INSERT INTO surveys (user_id, title, description, price, questions) VALUES ((SELECT id FROM users WHERE uid = ?), ?, ?, ?, ?)');
-    const result = stmt.run(hashedUid, survey_title, survey_description || null, survey_price, JSON.stringify(questions));
+const hashedUid = hashUid(uid);
 
-    res.status(201).json({ message: 'Survey created successfully.', surveyId: result.lastInsertRowid });
+// ユーザーが存在するか確認
+const userCheckStmt = db_for_app5.prepare('SELECT id FROM users WHERE uid = ?');
+let user = userCheckStmt.get(hashedUid);
+
+if (!user) {
+    // ユーザーが存在しない場合、追加
+    const addUserStmt = db_for_app5.prepare('INSERT INTO users (uid) VALUES (?)');
+    const addUserResult = addUserStmt.run(hashedUid);
+    user = { id: addUserResult.lastInsertRowid };
+}
+
+// surveysテーブルに追加
+const surveyStmt = db_for_app5.prepare('INSERT INTO surveys (user_id, title, description, price, questions) VALUES (?, ?, ?, ?, ?)');
+const surveyResult = surveyStmt.run(user.id, survey_title, survey_description || null, survey_price, JSON.stringify(questions));
+
+
+    res.status(201).json({ message: 'Survey created successfully.', survey_id: surveyResult.lastInsertRowid });
 });
 
 app.post('/app5/surveys/delete', (req, res) => {
@@ -378,6 +345,19 @@ app.post('/app5/responses/create', (req, res) => {
     }
 
     const hashedUid = hashUid(uid);
+
+    // 自分の作ったsurveyに対する回答は不可のため、uidとsurvey_idからuser_idを取得し、user_idが一致するか確認
+    // user_idが一致する場合はエラーを返す
+    const idCheckStmt = db_for_app5.prepare(`
+        SELECT COUNT(*) AS count 
+        FROM surveys 
+        WHERE id = ? AND user_id = (SELECT id FROM users WHERE uid = ?)
+    `);
+    const id_check = idCheckStmt.get(survey_id, hashedUid).count > 0;
+    if (id_check) {
+        // 自分の作ったsurveyに対する回答は不可と表示するために、エラーを返す
+        return res.status(404).json({ error: 'you can not answer to the survey you created.' });
+    }
 
     const stmt = db_for_app5.prepare('INSERT INTO responses (survey_id, respondent_uid, answers) VALUES (?, ?, ?)');
     stmt.run(survey_id, hashedUid, JSON.stringify(answers));
