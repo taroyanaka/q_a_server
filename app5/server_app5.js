@@ -20,6 +20,7 @@
     const sqlite = require('better-sqlite3');
     
     const crypto = require('crypto');
+const e = require('express');
     
     const db_for_app5 = new sqlite('app5.db');
     
@@ -107,6 +108,23 @@ const insertTestData_app5 = () => {
             price: 100,
             questions: JSON.stringify(['Question 7', 'Question 8'])
         },
+        // user_id 2のユーザーが作成したsurvey
+        {
+            user_id: 2,
+            title: 'Survey 4',
+            description: 'Description for survey 4',
+            price: 300,
+            questions: JSON.stringify(['Question 9', 'Question 10'])
+        },
+        // user_id 1のユーザーが作成したsurvey
+        {
+            user_id: 1,
+            title: 'Survey 5',
+            description: 'Description for survey 5',
+            price: 200,
+            questions: JSON.stringify(['Question 11', 'Question 12'])
+        },
+
     ];
 
     const responses = [
@@ -261,8 +279,21 @@ if (!req.body.uid) {
                 }
                 return acc;
             }, {});
-            
-            return Object.values(surveys);
+
+            const res2 = Object.values(surveys);
+            const all_user_and_the_balance = readAllUsers();
+            // all_user_and_the_balanceとres2を照らし合わせて、
+            // survey作成者のbalance残高がsurveyのpriceを下回っている場合、
+            // 該当のsurveyのalreadyをtrueにする
+            const res3 = res2.map(survey => {
+                const user = all_user_and_the_balance.find(user => user.id === survey.user_id);
+                if (user && user.balance < survey.price) {
+                    survey.already = true;
+                }
+                return survey;
+            });
+
+            return res3;
         };
         const readMySurveysAndResponses = (hashedUid) => {
             const stmt = db_for_app5.prepare(`
@@ -378,6 +409,8 @@ app.post('/app5/surveys/delete', (req, res) => {
 });
 
 app.post('/app5/responses/create', (req, res) => {
+try {
+    
     const hashUid = (uid) => {
         return crypto.createHash('sha256').update(uid).digest('hex');
     };
@@ -419,11 +452,19 @@ app.post('/app5/responses/create', (req, res) => {
     // priceの取得
     const priceStmt = db_for_app5.prepare('SELECT price FROM surveys WHERE id = ?');
     const price = priceStmt.get(survey_id).price;
-    // 現在の残高の取得
-    const balanceStmt = db_for_app5.prepare('SELECT balance FROM users WHERE uid = ?');
-    const balance = balanceStmt.get(hashedUid).balance;
-    if (balance < price) {
-        return res.status(403).json({ error: 'Insufficient balance.' });
+
+    const balanceStmt = db_for_app5.prepare('SELECT balance FROM users WHERE id = ?');
+    // survey_idからsurveyを取得
+    const surveyStmt = db_for_app5.prepare('SELECT user_id FROM surveys WHERE id = ?');
+    const survey = surveyStmt.get(survey_id);
+    // surveyのuser_idからsurveyを作成したユーザーのバランスを取得
+    const surveyMadeUserBalance = balanceStmt.get(survey.user_id).balance;
+    console.log("surveyMadeUserBalance", surveyMadeUserBalance);
+    console.log("price", price);
+    if (surveyMadeUserBalance < price) {
+        throw new Error('Insufficient balance.');
+        // return res.status(403).json({ error: 'Insufficient balance.' });
+        // エラースロー
     }
 
 
@@ -447,16 +488,46 @@ app.post('/app5/responses/create', (req, res) => {
     const addBalanceStmt = db_for_app5.prepare(`
         UPDATE users 
         SET balance = balance + (SELECT price FROM surveys WHERE id = ?) 
-        WHERE id = (SELECT user_id FROM surveys WHERE id = ?)
+        WHERE uid = ?
     `);
+    const res1 = addBalanceStmt.run(survey_id, hashedUid);
     const deductBalanceStmt = db_for_app5.prepare(`
         UPDATE users 
         SET balance = balance - (SELECT price FROM surveys WHERE id = ?) 
         WHERE uid = ?
     `);
-    addBalanceStmt.run(survey_id, survey_id);
-    deductBalanceStmt.run(survey_id, hashedUid);
+    const surveyMadeUserId = db_for_app5.prepare('SELECT user_id FROM surveys WHERE id = ?').get(survey_id).user_id;
+    const surveyMadeUserIdsUid = db_for_app5.prepare('SELECT uid FROM users WHERE id = ?').get(surveyMadeUserId).uid;
+    const res2 = deductBalanceStmt.run(survey_id, surveyMadeUserIdsUid);
+    // res1かres2のどちらかが失敗した場合、エラーを返し、ロールバックする
+    if (res1.changes === 0 || res2.changes === 0) {
+        if (res1.changes === 0) {
+            const backBalanceStmt = db_for_app5.prepare(`
+                UPDATE users 
+                SET balance = balance - (SELECT price FROM surveys WHERE id = ?) 
+                WHERE uid = ?
+            `);
+            backBalanceStmt.run(survey_id, hashedUid);
+        }
+        if (res2.changes === 0) {
+            const backBalanceStmt = db_for_app5.prepare(`
+                UPDATE users 
+                SET balance = balance + (SELECT price FROM surveys WHERE id = ?) 
+                WHERE uid = ?
+            `);
+            backBalanceStmt.run(survey_id, surveyMadeUserIdsUid);
+
+        }
+        throw new Error('Failed to update balance.');
+    }
+
+
+
 
     res.status(201).json({ message: 'Response created successfully.' });
-});
 
+} catch (error) {
+    res.status(500).json({ error: error.message });
+    
+}
+});
