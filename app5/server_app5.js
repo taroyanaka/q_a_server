@@ -1,10 +1,11 @@
 
 // テスト項目(思いつく限り)
-// nullチェック全て
-// 範囲外チェック全て
-// balanceとpriceの動作チェック
-// UI挙動チェック
-// エラー表示が正しいかチェック
+// 以下をログイン/未ログイン状態でそれぞれテストする
+    // nullチェック全て
+    // 範囲外チェック全て
+    // balanceとpriceの動作チェック
+    // UI挙動チェック
+    // エラー表示が正しいかチェック
 
     ///////////////////////////server_express.js/////////////////////////////
     ///////////////////////////server_express.js/////////////////////////////
@@ -27,7 +28,6 @@
     const sqlite = require('better-sqlite3');
     
     const crypto = require('crypto');
-const e = require('express');
     
     const db_for_app5 = new sqlite('app5.db');
     
@@ -88,7 +88,7 @@ const initializeDatabase_app5 = () => {
 const insertTestData_app5 = () => {
     const users = [
         { uid: 'user1', balance: 0 },
-        { uid: 'user2', balance: 1000 },
+        { uid: 'user2', balance: 0 },
         { uid: 'user3', balance: 1000 },
     ];
 
@@ -123,9 +123,9 @@ const insertTestData_app5 = () => {
             price: 300,
             questions: JSON.stringify(['Question 9', 'Question 10'])
         },
-        // user_id 1のユーザーが作成したsurvey
+        // user_id 2のユーザーが作成したsurvey
         {
-            user_id: 1,
+            user_id: 2,
             title: 'Survey 5',
             description: 'Description for survey 5',
             price: 200,
@@ -213,9 +213,10 @@ if (!req.body.uid) {
         const res1 = stmt.all();
         console.log(res1);
         // 同じidのsurveyが複数回表示されるのを防ぐために、idをキーにしてanswersを配列にまとめる
+        // 未ログイン状態では回答できない仕様のため、全てのalreadyはtrueにする
         const surveys = res1.reduce((acc, cur) => {
             if (!acc[cur.id]) {
-                acc[cur.id] = { ...cur, answers: [] };
+                acc[cur.id] = { ...cur, answers: [], already: true };
             }
             if (cur.answers) {
                 acc[cur.id].answers.push(cur.answers);
