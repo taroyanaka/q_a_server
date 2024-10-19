@@ -77,11 +77,15 @@ const db_for_app7 = new sqlite('app7.db');
 
 
 // 特定のユーザーに紐づくプロジェクトとそれに紐づく全ての情報を取得するエンドポイントを作成します。
-app.get('/users/:id/projects', (req, res) => {
+// app.get('/users/:id/projects', (req, res) => {
+// app.get('/users/projects', (req, res) => {
+app.get('/', (req, res) => {
     try {
-        const { id } = req.params;
-        const stmt = db_for_app7.prepare('SELECT * FROM projects WHERE user_id = ?');
-        const projects = stmt.all(id);
+        // const { id } = req.params;
+        // const stmt = db_for_app7.prepare('SELECT * FROM projects WHERE user_id = ?');
+        const stmt = db_for_app7.prepare('SELECT * FROM projects');
+        // const projects = stmt.all(id);
+        const projects = stmt.all();
         if (projects) {
             projects.forEach(project => {
                 project.members = db_for_app7.prepare('SELECT * FROM members WHERE id IN (SELECT member_id FROM project_members WHERE project_id = ?)').all(project.id);
@@ -105,6 +109,228 @@ app.get('/users/:id/projects', (req, res) => {
     }
 });
 
+const data = [
+    {
+        "id": 1,
+        "name": "Project 1",
+        "description": "Description 1",
+        "kpi": 80,
+        "dueDate": 96,
+        "difficulty": 3,
+        "packs": [
+            {
+                "id": 1,
+                "projectId": 1,
+                "plan": {
+                    "description": "Plan 1",
+                    "done": true,
+                    "links": [
+                        {
+                            "name": "Link 1",
+                            "href": "https://example.com",
+                            "stars": 3
+                        }
+                    ]
+                },
+                "do": {
+                    "description": "Do 1",
+                    "done": false,
+                    "links": []
+                },
+                "check": {
+                    "description": "Check 1",
+                    "done": false,
+                    "links": []
+                },
+                "act": {
+                    "description": "Act 1",
+                    "done": false,
+                    "links": []
+                },
+                "dueDate": "2023-12-01T00:00:00Z"
+            },
+            {
+                "id": 2,
+                "projectId": 1,
+                "plan": {
+                    "description": "Plan 2",
+                    "done": true,
+                    "links": []
+                },
+                "do": {
+                    "description": "Do 2",
+                    "done": true,
+                    "links": []
+                },
+                "check": {
+                    "description": "Check 2",
+                    "done": false,
+                    "links": []
+                },
+                "act": {
+                    "description": "Act 2",
+                    "done": false,
+                    "links": []
+                },
+                "dueDate": "2023-12-05T00:00:00Z"
+            }
+        ]
+    },
+    {
+        "id": 2,
+        "name": "Project 2",
+        "description": "Description 2",
+        "kpi": 60,
+        "dueDate": 72,
+        "difficulty": 2,
+        "packs": [
+            {
+                "id": 3,
+                "projectId": 2,
+                "plan": {
+                    "description": "Plan 3",
+                    "done": true,
+                    "links": []
+                },
+                "do": {
+                    "description": "Do 3",
+                    "done": true,
+                    "links": []
+                },
+                "check": {
+                    "description": "Check 3",
+                    "done": true,
+                    "links": []
+                },
+                "act": {
+                    "description": "Act 3",
+                    "done": true,
+                    "links": []
+                },
+                "dueDate": "2023-12-10T00:00:00Z"
+            },
+            {
+                "id": 4,
+                "projectId": 2,
+                "plan": {
+                    "description": "Plan 4",
+                    "done": true,
+                    "links": []
+                },
+                "do": {
+                    "description": "Do 4",
+                    "done": true,
+                    "links": []
+                },
+                "check": {
+                    "description": "Check 4",
+                    "done": true,
+                    "links": []
+                },
+                "act": {
+                    "description": "Act 4",
+                    "done": false,
+                    "links": []
+                },
+                "dueDate": "2023-12-15T00:00:00Z"
+            }
+        ]
+    },
+    {
+        "id": 3,
+        "name": "Project 3",
+        "description": "Description 3",
+        "kpi": 40,
+        "dueDate": 48,
+        "difficulty": 1,
+        "packs": [
+            {
+                "id": 5,
+                "projectId": 3,
+                "plan": {
+                    "description": "Plan 5",
+                    "done": true,
+                    "links": []
+                },
+                "do": {
+                    "description": "Do 5",
+                    "done": true,
+                    "links": []
+                },
+                "check": {
+                    "description": "Check 5",
+                    "done": false,
+                    "links": []
+                },
+                "act": {
+                    "description": "Act 5",
+                    "done": false,
+                    "links": []
+                },
+                "dueDate": "2023-12-20T00:00:00Z"
+            },
+            {
+                "id": 6,
+                "projectId": 3,
+                "plan": {
+                    "description": "Plan 6",
+                    "done": true,
+                    "links": []
+                },
+                "do": {
+                    "description": "Do 6",
+                    "done": true,
+                    "links": []
+                },
+                "check": {
+                    "description": "Check 6",
+                    "done": true,
+                    "links": []
+                },
+                "act": {
+                    "description": "Act 6",
+                    "done": false,
+                    "links": []
+                },
+                "dueDate": "2023-12-25T00:00:00Z"
+            }
+        ]
+    }
+];
+
+// サンプルデータ(data)をデータベースに挿入
+app.post('/insert_sample_data', (req, res) => {
+    try {
+        data.forEach(project => {
+            const projectStmt = db_for_app7.prepare('INSERT INTO projects (id, name, description, kpi, due_date, difficulty) VALUES (?, ?, ?, ?, ?, ?)');
+            projectStmt.run(project.id, project.name, project.description, project.kpi, project.dueDate, project.difficulty);
+
+            project.packs.forEach(pack => {
+                const packStmt = db_for_app7.prepare('INSERT INTO packs (id, project_id, plan_description, plan_done, do_description, do_done, check_description, check_done, act_description, act_done, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                packStmt.run(pack.id, pack.projectId, pack.plan.description, pack.plan.done, pack.do.description, pack.do.done, pack.check.description, pack.check.done, pack.act.description, pack.act.done, pack.dueDate);
+
+                pack.plan.links.forEach(link => {
+                    const linkStmt = db_for_app7.prepare('INSERT INTO links (pack_id, url, description) VALUES (?, ?, ?)');
+                    linkStmt.run(pack.id, link.href, link.name);
+                });
+
+                pack.improvement_ideas.forEach(idea => {
+                    const ideaStmt = db_for_app7.prepare('INSERT INTO improvement_ideas (id, pack_id, type, description) VALUES (?, ?, ?, ?)');
+                    ideaStmt.run(idea.id, pack.id, idea.type, idea.description);
+
+                    idea.links.forEach(link => {
+                        const ideaLinkStmt = db_for_app7.prepare('INSERT INTO links (improvement_idea_id, url, description) VALUES (?, ?, ?)');
+                        ideaLinkStmt.run(idea.id, link.url, link.description);
+                    });
+                });
+            });
+        });
+        res.status(201).send('Sample data inserted');
+    } catch (error) {
+        console.error('Error inserting sample data:', error);
+        res.status(500).send('Internal server error');
+    }
+});
 
 app.post('/init_db', (req, res) => {
     try {
