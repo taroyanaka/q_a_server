@@ -297,9 +297,7 @@ const data = [
         ]
     }
 ];
-
-// サンプルデータ(data)をデータベースに挿入
-app.post('/insert_sample_data', (req, res) => {
+const insert_sample_data = () => {
     try {
         data.forEach(project => {
             const projectStmt = db_for_app7.prepare('INSERT INTO projects (id, name, description, kpi, due_date, difficulty) VALUES (?, ?, ?, ?, ?, ?)');
@@ -325,6 +323,15 @@ app.post('/insert_sample_data', (req, res) => {
                 });
             });
         });
+    } catch (error) {
+        console.error('Error inserting sample data:', error);
+    }
+};
+
+// サンプルデータ(data)をデータベースに挿入
+app.get('/insert_sample_data', (req, res) => {
+    try {
+        insert_sample_data();
         res.status(201).send('Sample data inserted');
     } catch (error) {
         console.error('Error inserting sample data:', error);
