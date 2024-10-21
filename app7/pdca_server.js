@@ -35,7 +35,6 @@
 // 2. `due_date` が過去の日付の場合：
 //    - エラー例: 「`due_date` は現在の日付より未来の日付である必要があります。」
 
-
 const express = require('express');
 const app = express();
 const bodyParser = require('body-parser');
@@ -51,71 +50,53 @@ const crypto = require('crypto');
 const db_for_app7 = new sqlite('app7.db');
 
 
-// 特定のユーザーに紐づくプロジェクトとそれに紐づく全ての情報を取得するエンドポイントを作成します。
-// app.get('/users/:id/projects', (req, res) => {
-// app.get('/users/projects', (req, res) => {
+// 全てのプロジェクトとそれに紐づくpacksを取得するエンドポイント。packのみも取得している。
 app.get('/', (req, res) => {
     try {
-        // data変数と同じ形式でデータを取得
-        const projects = db_for_app7.prepare(`
-            SELECT 
-                p.id, p.name, p.description, p.kpi, p.due_date, p.difficulty, 
-                json_group_array(
-                    json_object(
-                        'id', pk.id, 
-                        'projectId', pk.project_id, 
-                        'plan', json_object('description', pk.plan_description, 'done', pk.plan_done),
-                        'do', json_object('description', pk.do_description, 'done', pk.do_done),
-                        'check', json_object('description', pk.check_description, 'done', pk.check_done),
-                        'act', json_object('description', pk.act_description, 'done', pk.act_done),
-                        'due_date', pk.due_date
-                    )
-                ) as packs
-            FROM projects p
-            LEFT JOIN packs pk ON p.id = pk.project_id
-            GROUP BY p.id
-        `).all();
-        function convertData(data) {
-            return data.map(project => {
-                // Parse the packs string into a JSON array
-                const parsedPacks = JSON.parse(project.packs);
-        
-                // Convert each pack and add empty "links" to plan, do, check, act
-                const updatedPacks = parsedPacks.map(pack => ({
-                    ...pack,
-                    plan: {
-                        ...pack.plan,
-                        links: pack.plan.links || [] // Add an empty links array if not already present
-                    },
-                    do: {
-                        ...pack.do,
-                        links: pack.do.links || [] // Add an empty links array if not already present
-                    },
-                    check: {
-                        ...pack.check,
-                        links: pack.check.links || [] // Add an empty links array if not already present
-                    },
-                    act: {
-                        ...pack.act,
-                        links: pack.act.links || [] // Add an empty links array if not already present
-                    }
-                }));
-        
-                // Return the new project object with the corrected field names and structures
-                return {
-                    ...project,
-                    due_date: parseInt(project.due_date), // Convert due_date to an integer due_date
-                    packs: updatedPacks // Replace packs string with parsed and updated packs
-                };
-            });
-        }
-                    
+// projectsだけを取得する
+        const projects = db_for_app7.prepare('SELECT * FROM projects').all();
 
-        // Convert the data to the correct format
-        const convertedData = convertData(projects);        
+        // packsだけを取得する
+        let packs = db_for_app7.prepare('SELECT * FROM packs').all();
+
+        // packsのそれぞれのstageに対してlinksを取得して、packsに追加する
+        // 全てのlinksを取得
+        const links = db_for_app7.prepare('SELECT * FROM links').all();
+        packs = packs.map(pack => {
+            const packLinks = links.filter(link => link.pack_id === pack.id);
+            // console.log(packLinks);
+            return {
+                ...pack,
+                plan: {
+                    ...pack.plan,
+                    links: packLinks.filter(link => link.stage === 'plan')
+                },
+                do: {
+                    ...pack.do,
+                    links: packLinks.filter(link => link.stage === 'do')
+                },
+                check: {
+                    ...pack.check,
+                    links: packLinks.filter(link => link.stage === 'check')
+                },
+                act: {
+                    ...pack.act,
+                    links: packLinks.filter(link => link.stage === 'act')
+                }
+            };
+        });
+
+        // projectsにpacksを追加する
+        const projects_and_packs = projects.map(project => {
+            const projectPacks = packs.filter(pack => pack.project_id === project.id);
+            return {
+                ...project,
+                packs: projectPacks
+            };
+        });
 
         if (projects.length > 0) {
-            res.json(convertedData);
+            res.json({projects: projects, packs: packs, projects_and_packs: projects_and_packs});
         }
 
     } catch (error) {
@@ -316,10 +297,10 @@ const data = [
 const insert_sample_data = () => {
 try {
     // usersにサンプルデータを挿入
-    const userStmt = db_for_app7.prepare('INSERT INTO users (uid, name, email) VALUES (?, ?, ?)');
-    userStmt.run('user1', 'User One', 'user1@example.com');
-    userStmt.run('user2', 'User Two', 'user2@example.com');
-    userStmt.run('user3', 'User Three', 'user3@example.com');
+    const userStmt = db_for_app7.prepare('INSERT INTO users (uid) VALUES (?)');
+    userStmt.run('user1');
+    userStmt.run('user2');
+    userStmt.run('user3');
 
     data.forEach(project => {
         const projectStmt = db_for_app7.prepare('INSERT INTO projects (name, description, kpi, due_date, difficulty, user_id) VALUES (?, ?, ?, ?, ?, ?)');
@@ -332,15 +313,37 @@ try {
             const packStmt = db_for_app7.prepare('INSERT INTO packs (project_id, plan_description, plan_done, do_description, do_done, check_description, check_done, act_description, act_done, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
             const packInfo = packStmt.run(projectId, pack.plan.description, pack.plan.done, pack.do.description, pack.do.done, pack.check.description, pack.check.done, pack.act.description, pack.act.done, pack.due_date);
             const packId = packInfo.lastInsertRowid;
-    
-            // pack.plan.linksが存在しない場合はスキップ
-            if (!pack.plan.links) return;
-            pack.plan.links.forEach(link => {
-                const linkStmt = db_for_app7.prepare('INSERT INTO links (pack_id, url, description) VALUES (?, ?, ?)');
-                linkStmt.run(packId, link.href, link.description);
-            });
-    
+
+                    // packのそれぞれのstageに対してlinksが存在する場合linksを挿入
+
+                if (pack.plan.links) {
+                    pack.plan.links.forEach(link => {
+                        const linkStmt = db_for_app7.prepare('INSERT INTO links (pack_id, url, description, stage) VALUES (?, ?, ?, ?)');
+                        linkStmt.run(packId, link.href, link.description, 'plan');
+                    });
+                }
+                if (pack.do.links) {
+                    pack.do.links.forEach(link => {
+                        const linkStmt = db_for_app7.prepare('INSERT INTO links (pack_id, url, description, stage) VALUES (?, ?, ?, ?)');
+                        linkStmt.run(packId, link.href, link.description, 'do');
+                    });
+                }
+                if (pack.check.links) {
+                    pack.check.links.forEach(link => {
+                        const linkStmt = db_for_app7.prepare('INSERT INTO links (pack_id, url, description, stage) VALUES (?, ?, ?, ?)');
+                        linkStmt.run(packId, link.href, link.description, 'check');
+                    });
+                }
+                if (pack.act.links) {
+                    pack.act.links.forEach(link => {
+                        const linkStmt = db_for_app7.prepare('INSERT INTO links (pack_id, url, description, stage) VALUES (?, ?, ?, ?)');
+                        linkStmt.run(packId, link.href, link.description, 'act');
+                    });
+                }
+
         });
+
+
     });
 } catch (error) {
     console.error('Error inserting sample data:', error);
@@ -373,8 +376,6 @@ const init_db = () => {
             kpi INTEGER,
             due_date TEXT,
             difficulty INTEGER,
-            current_price INTEGER,
-            target_price INTEGER,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id)
@@ -405,6 +406,7 @@ const init_db = () => {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             pack_id INTEGER,
             url TEXT,
+            stage TEXT,
             description TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -436,7 +438,6 @@ app.post('/init_db', (req, res) => {
         res.status(500).send('Internal server error');
     }
 });
-
 
 const all_validation_fn = {
     validateUser: (uid) => {
@@ -505,11 +506,16 @@ const all_validation_fn = {
     },
     validateLink: (link) => {
         const errors = [];
+        const validStages = ['plan', 'do', 'check', 'act'];
+    
         if (typeof link.url !== 'string' || link.url.length < 1 || link.url.length > 300 || !/^https?:\/\/[^\s$.?#].[^\s]*$/.test(link.url)) {
             errors.push('Invalid URL');
         }
         if (typeof link.description !== 'string' || link.description.length < 1 || link.description.length > 300) {
             errors.push('Invalid link description');
+        }
+        if (!validStages.includes(link.stage)) {
+            errors.push('Invalid stage');
         }
         return errors;
     }
@@ -612,8 +618,8 @@ app.post('/create_packs', async (req, res) => {
 // リンクの作成
 app.post('/create_links', async (req, res) => {
     try {
-        const { pack_id, url, description } = req.body;
-        const link = { url, description };
+        const { pack_id, url, description, stage } = req.body;
+        const link = { url, description, stage };
         const errors = all_validation_fn.validateLink(link);
         if (errors.length > 0) {
             return res.status(400).json({ errors });
