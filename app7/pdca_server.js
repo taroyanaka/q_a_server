@@ -473,12 +473,6 @@ const all_validation_fn = {
         if (!Number.isInteger(project.difficulty) || project.difficulty < 1 || project.difficulty > 5) {
             errors.push('Invalid project difficulty');
         }
-        if (!Number.isInteger(project.current_price) || project.current_price < 0) {
-            errors.push('Invalid project current price');
-        }
-        if (!Number.isInteger(project.target_price) || project.target_price < 0) {
-            errors.push('Invalid project target price');
-        }
         return errors;
     },
     validatePack: (pack) => {
@@ -581,10 +575,14 @@ app.post('/create_users', async (req, res) => {
     try {
         const { uid } = req.body;
         const errors = all_validation_fn.validateUser(uid);
-        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(uid, db_for_app7), db_for_app7);
-        errors.push(...userErrors); 
         if (errors.length > 0) {
             return res.status(400).json({ errors });
+        }
+        // すでに存在するuidの場合は正常終了
+        const userStmt = db_for_app7.prepare('SELECT id FROM users WHERE uid = ?');
+        const user = userStmt.get(uid);
+        if (user) {
+            return res.status(200).json({ id: user.id });
         }
         const stmt = db_for_app7.prepare('INSERT INTO users (uid) VALUES (?)');
         const info = stmt.run(uid);
@@ -598,8 +596,8 @@ app.post('/create_users', async (req, res) => {
 // プロジェクトの作成
 app.post('/create_projects', async (req, res) => {
     try {
-        const { user_id, name, description, kpi, due_date, difficulty, current_price, target_price, uid} = req.body;
-        const project = { name, description, kpi, due_date, difficulty, current_price, target_price };
+        const { user_id, name, description, kpi, due_date, difficulty, uid} = req.body;
+        const project = { name, description, kpi, due_date, difficulty };
         const errors = all_validation_fn.validateProject(project);
         if (errors.length > 0) {
             return res.status(400).json({ errors });
@@ -609,8 +607,8 @@ app.post('/create_projects', async (req, res) => {
             return res.status(404).json({ errors: userErrors });
         }
 
-        const stmt = db_for_app7.prepare('INSERT INTO projects (user_id, name, description, kpi, due_date, difficulty, current_price, target_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-        const info = stmt.run(user_id, name, description, kpi, due_date, difficulty, current_price, target_price);
+        const stmt = db_for_app7.prepare('INSERT INTO projects (user_id, name, description, kpi, due_date, difficulty) VALUES (?, ?, ?, ?, ?, ?)');
+        const info = stmt.run(user_id, name, description, kpi, due_date, difficulty);
         res.status(201).json({ id: info.lastInsertRowid });
     } catch (error) {
         console.error('Error creating project:', error);
