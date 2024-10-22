@@ -303,8 +303,8 @@ try {
     userStmt.run('user3');
 
     data.forEach(project => {
-        const projectStmt = db_for_app7.prepare('INSERT INTO projects (name, description, kpi, due_date, difficulty, user_id) VALUES (?, ?, ?, ?, ?, ?)');
-        const projectInfo = projectStmt.run(project.name, project.description, project.kpi, project.due_date, project.difficulty, project.userId);
+        const projectStmt = db_for_app7.prepare('INSERT INTO projects (name, description, kpi, due_date, difficulty, user_id) VALUES (?, ?, ?, ?, ?, 1)');
+        const projectInfo = projectStmt.run(project.name, project.description, project.kpi, project.due_date, project.difficulty);
         const projectId = projectInfo.lastInsertRowid;
 
         // project.packsが存在しない場合はスキップ
@@ -420,7 +420,10 @@ const init_db = () => {
 // サンプルデータ(data)をデータベースに挿入
 app.get('/insert_sample_data', (req, res) => {
     try {
-        init_db();
+        const { password } = req.body;
+        if (password !== 'init') {
+            return res.status(400).send('Invalid password');
+        }
         insert_sample_data();
         res.status(201).send('Sample data inserted');
     } catch (error) {
@@ -431,7 +434,12 @@ app.get('/insert_sample_data', (req, res) => {
 
 app.post('/init_db', (req, res) => {
     try {
+        const { password } = req.body;
+        if (password !== 'init') {
+            return res.status(400).send('Invalid password');
+        }
         init_db();
+        insert_sample_data();
         res.status(201).send('Database initialized');
     } catch (error) {
         console.error('Error initializing database:', error);
@@ -521,6 +529,22 @@ const all_validation_fn = {
     }
 };
 
+// uidからuserIdを取得する関数
+const get_user_id = async (uid, db) => {
+    try {
+    const stmt = db.prepare('SELECT id FROM users WHERE uid = ?');
+    const result = stmt.get(uid);
+    if (!result) {
+        throw new Error('User not found');
+    }
+    return result.id;
+} catch (error) {
+    console.error('Error fetching user ID:', error);
+    throw error;
+    }
+};
+
+
 const sql_validation_fn = {
     validateUserId: async (userId, db) => {
         const errors = [];
@@ -557,6 +581,8 @@ app.post('/create_users', async (req, res) => {
     try {
         const { uid } = req.body;
         const errors = all_validation_fn.validateUser(uid);
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(uid, db_for_app7), db_for_app7);
+        errors.push(...userErrors); 
         if (errors.length > 0) {
             return res.status(400).json({ errors });
         }
@@ -572,13 +598,13 @@ app.post('/create_users', async (req, res) => {
 // プロジェクトの作成
 app.post('/create_projects', async (req, res) => {
     try {
-        const { user_id, name, description, kpi, due_date, difficulty, current_price, target_price } = req.body;
+        const { user_id, name, description, kpi, due_date, difficulty, current_price, target_price, uid} = req.body;
         const project = { name, description, kpi, due_date, difficulty, current_price, target_price };
         const errors = all_validation_fn.validateProject(project);
         if (errors.length > 0) {
             return res.status(400).json({ errors });
         }
-        const userErrors = await sql_validation_fn.validateUserId(user_id, db_for_app7);
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(uid, db_for_app7), db_for_app7);
         if (userErrors.length > 0) {
             return res.status(404).json({ errors: userErrors });
         }
@@ -595,7 +621,7 @@ app.post('/create_projects', async (req, res) => {
 // パックの作成
 app.post('/create_packs', async (req, res) => {
     try {
-        const { project_id, plan_description, plan_done, do_description, do_done, check_description, check_done, act_description, act_done, due_date } = req.body;
+        const { project_id, plan_description, plan_done, do_description, do_done, check_description, check_done, act_description, act_done, due_date, uid } = req.body;
         const pack = { plan_description, plan_done, do_description, do_done, check_description, check_done, act_description, act_done, due_date };
         const errors = all_validation_fn.validatePack(pack);
         if (errors.length > 0) {
@@ -604,6 +630,10 @@ app.post('/create_packs', async (req, res) => {
         const projectErrors = await sql_validation_fn.validateProjectId(project_id, db_for_app7);
         if (projectErrors.length > 0) {
             return res.status(404).json({ errors: projectErrors });
+        }
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(uid, db_for_app7), db_for_app7);
+        if (userErrors.length > 0) {
+            return res.status(404).json({ errors: userErrors });
         }
 
         const stmt = db_for_app7.prepare('INSERT INTO packs (project_id, plan_description, plan_done, do_description, do_done, check_description, check_done, act_description, act_done, due_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
@@ -618,7 +648,7 @@ app.post('/create_packs', async (req, res) => {
 // リンクの作成
 app.post('/create_links', async (req, res) => {
     try {
-        const { pack_id, url, description, stage } = req.body;
+        const { pack_id, url, description, stage, uid } = req.body;
         const link = { url, description, stage };
         const errors = all_validation_fn.validateLink(link);
         if (errors.length > 0) {
@@ -627,6 +657,10 @@ app.post('/create_links', async (req, res) => {
         const packErrors = await sql_validation_fn.validatePackId(pack_id, db_for_app7);
         if (packErrors.length > 0) {
             return res.status(404).json({ errors: packErrors });
+        }
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(uid, db_for_app7), db_for_app7);
+        if (userErrors.length > 0) {
+            return res.status(404).json({ errors: userErrors });
         }
 
         const stmt = db_for_app7.prepare('INSERT INTO links (pack_id, url, description) VALUES (?, ?, ?)');
