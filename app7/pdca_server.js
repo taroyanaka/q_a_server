@@ -523,21 +523,6 @@ const all_validation_fn = {
     }
 };
 
-// uidからuserIdを取得する関数
-const get_user_id = async (uid, db) => {
-    try {
-    const stmt = db.prepare('SELECT id FROM users WHERE uid = ?');
-    const result = stmt.get(uid);
-    if (!result) {
-        throw new Error('User not found');
-    }
-    return result.id;
-} catch (error) {
-    console.error('Error fetching user ID:', error);
-    throw error;
-    }
-};
-
 
 const sql_validation_fn = {
     validateUserId: async (userId, db) => {
@@ -570,8 +555,22 @@ const sql_validation_fn = {
 };
 
 // CRUD エンドポイントの定義
+// uidからuserIdを取得する関数
+const get_user_id = async (uid, db) => {
+    try {
+    const stmt = db.prepare('SELECT id FROM users WHERE uid = ?');
+    const result = stmt.get(uid);
+    if (!result) {
+        throw new Error('User not found');
+    }
+    return result.id;
+} catch (error) {
+    console.error('Error fetching user ID:', error);
+    throw error;
+    }
+};
 // userの作成
-app.post('/create_users', async (req, res) => {
+async function create_users(req, res) {
     try {
         const { uid } = req.body;
         const errors = all_validation_fn.validateUser(uid);
@@ -591,12 +590,19 @@ app.post('/create_users', async (req, res) => {
         console.error('Error creating user:', error);
         res.status(500).send('Internal server error');
     }
-});
+}
 
 // プロジェクトの作成
 app.post('/create_projects', async (req, res) => {
     try {
-        const { user_id, name, description, kpi, due_date, difficulty, uid} = req.body;
+        const { name, description, kpi, due_date, difficulty, uid} = req.body;
+        // get_user_idとcreate_usersでuidをチェック。なければ作成
+
+        const user_id = await get_user_id(uid, db_for_app7);
+        if (!user_id) {
+            await create_users(req, res);
+        }
+
         const project = { name, description, kpi, due_date, difficulty };
         const errors = all_validation_fn.validateProject(project);
         if (errors.length > 0) {
