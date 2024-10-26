@@ -101,7 +101,7 @@ app.get('/', (req, res) => {
 
     } catch (error) {
         console.error('Error fetching projects:', error);
-        res.status(500).send('Internal server error');
+        res.status(500).json({ message: 'Internal server error' });
     }
 });
 
@@ -417,33 +417,19 @@ const init_db = () => {
     }
 }
 
-// サンプルデータ(data)をデータベースに挿入
-app.get('/insert_sample_data', (req, res) => {
-    try {
-        const { password } = req.body;
-        if (password !== 'init') {
-            return res.status(400).send('Invalid password');
-        }
-        insert_sample_data();
-        res.status(201).send('Sample data inserted');
-    } catch (error) {
-        console.error('Error inserting sample data:', error);
-        res.status(500).send('Internal server error');
-    }
-});
 
 app.post('/init_db', (req, res) => {
     try {
         const { password } = req.body;
         if (password !== 'init') {
-            return res.status(400).send('Invalid password');
+            return res.status(400).json({ message: 'Invalid password' });
         }
         init_db();
         insert_sample_data();
-        res.status(201).send('Database initialized');
+        res.status(201).json({ message: 'Database initialized' });
     } catch (error) {
         console.error('Error initializing database:', error);
-        res.status(500).send('Internal server error');
+        res.status(500).json({ message: 'Internal server error'});
     }
 });
 
@@ -501,8 +487,9 @@ const all_validation_fn = {
         if (![0, 1].includes(pack.act_done)) {
             errors.push('Invalid act done value');
         }
-        if (isNaN(Date.parse(pack.due_date))) {
-            errors.push('Invalid pack due date');
+        const isoDateRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/;
+        if (!isoDateRegex.test(pack.due_date)) {
+            errors.push('Invalid pack due date format. Must be ISO 8601 format.');
         }
         return errors;
     },
@@ -522,7 +509,6 @@ const all_validation_fn = {
         return errors;
     }
 };
-
 
 const sql_validation_fn = {
     validateUserId: async (userId, db) => {
@@ -588,7 +574,7 @@ async function create_users(req, res) {
         res.status(201).json({ id: info.lastInsertRowid });
     } catch (error) {
         console.error('Error creating user:', error);
-        res.status(500).send('Internal server error');
+        res.status(500).json({ message: 'Internal server error'});
     }
 }
 
@@ -618,14 +604,20 @@ app.post('/create_projects', async (req, res) => {
         res.status(201).json({ id: info.lastInsertRowid });
     } catch (error) {
         console.error('Error creating project:', error);
-        res.status(500).send('Internal server error');
+        res.status(500).json({ message: 'Internal server error'});
     }
 });
 
 // パックの作成
 app.post('/create_packs', async (req, res) => {
     try {
-        const { project_id, plan_description, plan_done, do_description, do_done, check_description, check_done, act_description, act_done, due_date, uid } = req.body;
+        const { project_id, plan_description, plan_done, do_description, do_done, check_description, check_done, act_description, act_done, uid } = req.body;
+console.log(req.body);
+        let { due_date } = req.body;
+        console.log(due_date);
+        // due_dateをISO 8601形式に変換
+        due_date = new Date(due_date).toISOString();
+
         const pack = { plan_description, plan_done, do_description, do_done, check_description, check_done, act_description, act_done, due_date };
         const errors = all_validation_fn.validatePack(pack);
         if (errors.length > 0) {
@@ -645,13 +637,14 @@ app.post('/create_packs', async (req, res) => {
         res.status(201).json({ id: info.lastInsertRowid });
     } catch (error) {
         console.error('Error creating pack:', error);
-        res.status(500).send('Internal server error');
+        res.status(500).json({ message: 'Internal server error'});
     }
 });
 
 // リンクの作成
 app.post('/create_links', async (req, res) => {
     try {
+        console.log(req.body);
         const { pack_id, url, description, stage, uid } = req.body;
         const link = { url, description, stage };
         const errors = all_validation_fn.validateLink(link);
@@ -666,12 +659,12 @@ app.post('/create_links', async (req, res) => {
         if (userErrors.length > 0) {
             return res.status(404).json({ errors: userErrors });
         }
-
-        const stmt = db_for_app7.prepare('INSERT INTO links (pack_id, url, description) VALUES (?, ?, ?)');
-        const info = stmt.run(pack_id, url, description);
+        
+        const stmt = db_for_app7.prepare('INSERT INTO links (pack_id, url, description, stage) VALUES (?, ?, ?, ?)');
+        const info = stmt.run(pack_id, url, description, stage);
         res.status(201).json({ id: info.lastInsertRowid });
     } catch (error) {
         console.error('Error creating link:', error);
-        res.status(500).send('Internal server error');
+        res.status(500).json({ message: 'Internal server error'});
     }
 });
