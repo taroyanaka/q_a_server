@@ -298,9 +298,10 @@ const insert_sample_data = () => {
 try {
     // usersにサンプルデータを挿入
     const userStmt = db_for_app7.prepare('INSERT INTO users (uid) VALUES (?)');
-    userStmt.run('user1');
-    userStmt.run('user2');
-    userStmt.run('user3');
+    userStmt.run(crypto.createHash('sha256').update('user1').digest('hex'));
+    userStmt.run(crypto.createHash('sha256').update('user2').digest('hex'));
+    userStmt.run(crypto.createHash('sha256').update('user3').digest('hex'));
+
 
     data.forEach(project => {
         const projectStmt = db_for_app7.prepare('INSERT INTO projects (name, description, kpi, due_date, difficulty, user_id) VALUES (?, ?, ?, ?, ?, 1)');
@@ -356,61 +357,61 @@ const init_db = () => {
         db_for_app7.exec('DROP TABLE IF EXISTS packs');
         db_for_app7.exec('DROP TABLE IF EXISTS projects');
         db_for_app7.exec('DROP TABLE IF EXISTS users');
-        
+
         // ユーザーテーブルの作成
         db_for_app7.exec(`
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY,
             uid TEXT NOT NULL UNIQUE,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL
         )`);
         
         // プロジェクトテーブルの作成
         db_for_app7.exec(`
         CREATE TABLE IF NOT EXISTS projects (
             id INTEGER PRIMARY KEY,
-            user_id INTEGER,
+            user_id INTEGER NOT NULL,
             name TEXT NOT NULL,
-            description TEXT,
-            kpi INTEGER,
-            due_date TEXT,
-            difficulty INTEGER,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
+            description TEXT NOT NULL,
+            kpi INTEGER NOT NULL,
+            due_date TEXT NOT NULL,
+            difficulty INTEGER NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
         )`);
         
         // パックテーブルの作成
         db_for_app7.exec(`
-            CREATE TABLE IF NOT EXISTS packs (
-                id INTEGER PRIMARY KEY,
-                project_id INTEGER,
-                plan_description TEXT,
-                plan_done INTEGER,
-                do_description TEXT,
-                do_done INTEGER,
-                check_description TEXT,
-                check_done INTEGER,
-                act_description TEXT,
-                act_done INTEGER,
-                due_date TEXT,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (project_id) REFERENCES projects(id)
-            )`);
-                
+        CREATE TABLE IF NOT EXISTS packs (
+            id INTEGER PRIMARY KEY,
+            project_id INTEGER NOT NULL,
+            plan_description TEXT NOT NULL,
+            plan_done INTEGER CHECK (plan_done IN (0, 1)),
+            do_description TEXT NOT NULL,
+            do_done INTEGER CHECK (do_done IN (0, 1)),
+            check_description TEXT NOT NULL,
+            check_done INTEGER CHECK (check_done IN (0, 1)),
+            act_description TEXT NOT NULL,
+            act_done INTEGER CHECK (act_done IN (0, 1)),
+            due_date TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE ON UPDATE CASCADE
+        )`);
+        
         // リンクテーブルの作成
         db_for_app7.exec(`
         CREATE TABLE IF NOT EXISTS links (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            pack_id INTEGER,
-            url TEXT,
-            stage TEXT,
-            description TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (pack_id) REFERENCES packs(id)
+            pack_id INTEGER NOT NULL,
+            url TEXT NOT NULL,
+            stage TEXT NOT NULL,
+            description TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            FOREIGN KEY (pack_id) REFERENCES packs(id) ON DELETE CASCADE ON UPDATE CASCADE
         )`);
     } catch (error) {
         console.error('Error initializing database:', error);
@@ -425,7 +426,7 @@ app.post('/init_db', (req, res) => {
             return res.status(400).json({ message: 'Invalid password' });
         }
         init_db();
-        insert_sample_data();
+        // insert_sample_data();
         res.status(201).json({ message: 'Database initialized' });
     } catch (error) {
         console.error('Error initializing database:', error);
@@ -537,7 +538,18 @@ const sql_validation_fn = {
             errors.push('Pack not found');
         }
         return errors;
+    },
+    validateLinkId: async (linkId, db) => {
+        const errors = [];
+        const stmt = db.prepare('SELECT COUNT(*) AS count FROM links WHERE id = ?');
+        const result = await stmt.get(linkId);
+        if (result.count === 0) {
+            errors.push('Link not found');
+        }
+        return errors;
     }
+
+
 };
 
 // CRUD エンドポイントの定義
@@ -547,7 +559,7 @@ const get_user_id = async (uid, db) => {
     const stmt = db.prepare('SELECT id FROM users WHERE uid = ?');
     const result = stmt.get(uid);
     if (!result) {
-        throw new Error('User not found');
+        return false;
     }
     return result.id;
 } catch (error) {
@@ -563,18 +575,33 @@ async function create_users(req, res) {
         if (errors.length > 0) {
             return res.status(400).json({ errors });
         }
-        // すでに存在するuidの場合は正常終了
+
+        // uidをSHA256でハッシュ化
+        const hashuid = crypto.createHash('sha256').update(uid).digest('hex');
+
+        // すでに存在するuidの場合はそのidを返す
         const userStmt = db_for_app7.prepare('SELECT id FROM users WHERE uid = ?');
-        const user = userStmt.get(uid);
+        const user = userStmt.get(hashuid);
         if (user) {
-            return res.status(200).json({ id: user.id });
+            return user.id;
         }
+
+        // 新しいユーザーを作成
         const stmt = db_for_app7.prepare('INSERT INTO users (uid) VALUES (?)');
-        const info = stmt.run(uid);
-        res.status(201).json({ id: info.lastInsertRowid });
+        const info = stmt.run(hashuid);
+
+        const idStmt = db_for_app7.prepare('SELECT id FROM users WHERE uid = ?');
+        const newUser = idStmt.get(hashuid);
+        console.log(
+"hashuid,", hashuid,
+"user,", user,
+// "user.id,", user.id,
+"newUser,", newUser,
+        );
+        return newUser.id;
     } catch (error) {
         console.error('Error creating user:', error);
-        res.status(500).json({ message: 'Internal server error'});
+        res.status(500).json({ message: 'Internal server error' });
     }
 }
 
@@ -584,9 +611,14 @@ app.post('/create_projects', async (req, res) => {
         const { name, description, kpi, due_date, difficulty, uid} = req.body;
         // get_user_idとcreate_usersでuidをチェック。なければ作成
 
-        const user_id = await get_user_id(uid, db_for_app7);
+        // uidをSHA256でハッシュ化
+        const hashuid = crypto.createHash('sha256').update(uid).digest('hex');
+        // ハッシュ化されたuidを使用してユーザーIDを取得
+        let user_id = await get_user_id(hashuid, db_for_app7);
+        console.log(user_id);
         if (!user_id) {
             await create_users(req, res);
+            user_id = await get_user_id(hashuid, db_for_app7);
         }
 
         const project = { name, description, kpi, due_date, difficulty };
@@ -594,10 +626,13 @@ app.post('/create_projects', async (req, res) => {
         if (errors.length > 0) {
             return res.status(400).json({ errors });
         }
-        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(uid, db_for_app7), db_for_app7);
+        console.log("user_id", user_id);
+
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(hashuid, db_for_app7), db_for_app7);
         if (userErrors.length > 0) {
             return res.status(404).json({ errors: userErrors });
         }
+        console.log("userErrors", userErrors);
 
         const stmt = db_for_app7.prepare('INSERT INTO projects (user_id, name, description, kpi, due_date, difficulty) VALUES (?, ?, ?, ?, ?, ?)');
         const info = stmt.run(user_id, name, description, kpi, due_date, difficulty);
@@ -627,7 +662,15 @@ console.log(req.body);
         if (projectErrors.length > 0) {
             return res.status(404).json({ errors: projectErrors });
         }
-        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(uid, db_for_app7), db_for_app7);
+        const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
+        const user_id = await get_user_id(hashedUid, db_for_app7);
+        if(user_id === false) {
+            console.log("user_id", user_id);
+            console.log("// エラー処理");
+            // エラー処理
+            return res.status(404).json({ errors: ['User not found'] });
+        }
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(hashedUid, db_for_app7), db_for_app7);
         if (userErrors.length > 0) {
             return res.status(404).json({ errors: userErrors });
         }
@@ -655,7 +698,9 @@ app.post('/create_links', async (req, res) => {
         if (packErrors.length > 0) {
             return res.status(404).json({ errors: packErrors });
         }
-        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(uid, db_for_app7), db_for_app7);
+        const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
+
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(hashedUid, db_for_app7), db_for_app7);
         if (userErrors.length > 0) {
             return res.status(404).json({ errors: userErrors });
         }
@@ -665,6 +710,136 @@ app.post('/create_links', async (req, res) => {
         res.status(201).json({ id: info.lastInsertRowid });
     } catch (error) {
         console.error('Error creating link:', error);
+        res.status(500).json({ message: 'Internal server error'});
+    }
+});
+
+
+// プロジェクトとパックスとリンクの削除のエンドポイント
+app.post('/delete_projects', async (req, res) => {
+    try {
+        const { project_id, uid } = req.body;
+        console.log(req.body);
+        const projectErrors = await sql_validation_fn.validateProjectId(project_id, db_for_app7);
+        if (projectErrors.length > 0) {
+            return res.status(404).json({ errors: projectErrors });
+        }
+        const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(hashedUid, db_for_app7), db_for_app7);
+        if (userErrors.length > 0) {
+            return res.status(404).json({ errors: userErrors });
+        }
+        const stmt = db_for_app7.prepare('DELETE FROM projects WHERE id = ?');
+        stmt.run(project_id);
+        // project_idに紐づくpacksが存在するか確認し、存在すれば削除
+        const packStmt = db_for_app7.prepare('DELETE FROM packs WHERE project_id = ?');
+        packStmt.run(project_id);
+        // project_idに紐づくpacksに紐づくlinksが存在するか確認し、存在すれば削除
+        const linkStmt = db_for_app7.prepare('DELETE FROM links WHERE pack_id IN (SELECT id FROM packs WHERE project_id = ?)');
+        linkStmt.run(project_id);
+
+        res.status(200).json({ message: 'Project deleted' });
+    } catch (error) {
+        console.error('Error deleting project:', error);
+        res.status(500).json({ message: 'Internal server error'});
+    }
+});
+app.post('/delete_packs', async (req, res) => {
+    try {
+        const { pack_id, uid } = req.body;
+        const packErrors = await sql_validation_fn.validatePackId(pack_id, db_for_app7);
+        if (packErrors.length > 0) {
+            return res.status(404).json({ errors: packErrors });
+        }
+        const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(hashedUid, db_for_app7), db_for_app7);
+        if (userErrors.length > 0) {
+            return res.status(404).json({ errors: userErrors });
+        }
+        const stmt = db_for_app7.prepare('DELETE FROM packs WHERE id = ?');
+        stmt.run(pack_id);
+
+        // pack_idに紐づくlinksが存在するか確認し、存在すれば削除
+        const linkStmt = db_for_app7.prepare('DELETE FROM links WHERE pack_id = ?');
+        linkStmt.run(pack_id);
+
+        // jsonで返す
+        res.status(200).json({ message: 'Pack deleted' });
+    } catch (error) {
+        console.error('Error deleting pack:', error);
+        res.status(500).json({ message: 'Internal server error'});
+    }
+});
+app.post('/delete_links', async (req, res) => {
+    try {
+        const { link_id, uid } = req.body;
+        const linkErrors = await sql_validation_fn.validateLinkId(link_id, db_for_app7);
+        if (linkErrors.length > 0) {
+            return res.status(404).json({ errors: linkErrors });
+        }
+        const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(hashedUid, db_for_app7), db_for_app7);
+        if (userErrors.length > 0) {
+            return res.status(404).json({ errors: userErrors });
+        }
+        const stmt = db_for_app7.prepare('DELETE FROM links WHERE id = ?');
+        stmt.run(link_id);
+        res.status(200).json({ message: 'Link deleted' });
+    } catch (error) {
+        console.error('Error deleting link:', error);
+        res.status(500).json({ message: 'Internal server error'});
+    }
+});
+
+
+// プロジェクトとパックスとアップデートのエンドポイント
+app.post('/update_projects', async (req, res) => {
+    try {
+        const { project_id, name, description, kpi, due_date, difficulty, uid } = req.body;
+        const project = { name, description, kpi, due_date, difficulty };
+        const errors = all_validation_fn.validateProject(project);
+        if (errors.length > 0) {
+            return res.status(400).json({ errors });
+        }
+        const projectErrors = await sql_validation_fn.validateProjectId(project_id, db_for_app7);
+        if (projectErrors.length > 0) {
+            return res.status(404).json({ errors: projectErrors });
+        }
+        const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(hashedUid, db_for_app7), db_for_app7);
+        if (userErrors.length > 0) {
+            return res.status(404).json({ errors: userErrors });
+        }
+        const stmt = db_for_app7.prepare('UPDATE projects SET name = ?, description = ?, kpi = ?, due_date = ?, difficulty = ? WHERE id = ?');
+        stmt.run(name, description, kpi, due_date, difficulty, project_id);
+        res.status(200).json({ message: 'Project updated' });
+    } catch (error) {
+        console.error('Error updating project:', error);
+        res.status(500).json({ message: 'Internal server error'});
+    }
+});
+app.post('/update_packs', async (req, res) => {
+    try {
+        const { pack_id, project_id, plan_description, plan_done, do_description, do_done, check_description, check_done, act_description, act_done, due_date, uid } = req.body;
+        let pack = { plan_description, plan_done, do_description, do_done, check_description, check_done, act_description, act_done, due_date };
+        const errors = all_validation_fn.validatePack(pack);
+        if (errors.length > 0) {
+            return res.status(400).json({ errors });
+        }
+        const packErrors = await sql_validation_fn.validatePackId(pack_id, db_for_app7);
+        if (packErrors.length > 0) {
+            return res.status(404).json({ errors: packErrors });
+        }
+        const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(hashedUid, db_for_app7), db_for_app7);
+        if (userErrors.length > 0) {
+            return res.status(404).json({ errors: userErrors });
+        }
+        const stmt = db_for_app7.prepare('UPDATE packs SET plan_description = ?, plan_done = ?, do_description = ?, do_done = ?, check_description = ?, check_done = ?, act_description = ?, act_done = ?, due_date = ? WHERE id = ?');
+        stmt.run(plan_description, plan_done, do_description, do_done, check_description, check_done, act_description, act_done, due_date, pack_id);
+        res.status(200).json({ message: 'Pack updated' });
+    } catch (error) {
+        console.error('Error updating pack:', error);
         res.status(500).json({ message: 'Internal server error'});
     }
 });
