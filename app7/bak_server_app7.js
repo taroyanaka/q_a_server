@@ -209,7 +209,7 @@ try {
     res.status(500).json({ message: 'Internal server error'});
 }
 });
-const app7_all_validation_fn = {
+const all_validation_fn = {
     validateUser: (uid) => {
         const errors = [];
         const uidRegex = /^[a-zA-Z0-9_-]{28}$/; // Google Firebase Authentication UID format
@@ -285,7 +285,7 @@ const app7_all_validation_fn = {
         return errors;
     }
 };
-const app7_sql_validation_fn = {
+const sql_validation_fn = {
     validateUserId: async (userId, db) => {
         const errors = [];
         const stmt = db.prepare('SELECT COUNT(*) AS count FROM users WHERE id = ?');
@@ -325,7 +325,7 @@ const app7_sql_validation_fn = {
 
 
 };
-const app7_get_user_id = async (uid, db) => {
+const get_user_id = async (uid, db) => {
     try {
     const stmt = db.prepare('SELECT id FROM users WHERE uid = ?');
     const result = stmt.get(uid);
@@ -338,65 +338,65 @@ const app7_get_user_id = async (uid, db) => {
     throw error;
     }
 };
+async function create_users(req, res) {
+    try {
+        const { uid } = req.body;
+        const errors = all_validation_fn.validateUser(uid);
+        if (errors.length > 0) {
+            return res.status(400).json({ errors });
+        }
+
+        // uidをSHA256でハッシュ化
+        const hashuid = crypto.createHash('sha256').update(uid).digest('hex');
+
+        // すでに存在するuidの場合はそのidを返す
+        const userStmt = db_for_app7.prepare('SELECT id FROM users WHERE uid = ?');
+        const user = userStmt.get(hashuid);
+        if (user) {
+            return user.id;
+        }
+
+        // 新しいユーザーを作成
+        const stmt = db_for_app7.prepare('INSERT INTO users (uid) VALUES (?)');
+        const info = stmt.run(hashuid);
+
+        const idStmt = db_for_app7.prepare('SELECT id FROM users WHERE uid = ?');
+        const newUser = idStmt.get(hashuid);
+        console.log(
+"hashuid,", hashuid,
+"user,", user,
+// "user.id,", user.id,
+"newUser,", newUser,
+        );
+        return newUser.id;
+    } catch (error) {
+        console.error('Error creating user:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+}
 app.post('/app7/create_projects', async (req, res) => {
     try {
-        async function create_users(req, res) {
-            try {
-                const { uid } = req.body;
-                const errors = app7_all_validation_fn.validateUser(uid);
-                if (errors.length > 0) {
-                    return res.status(400).json({ errors });
-                }
-        
-                // uidをSHA256でハッシュ化
-                const hashuid = crypto.createHash('sha256').update(uid).digest('hex');
-        
-                // すでに存在するuidの場合はそのidを返す
-                const userStmt = db_for_app7.prepare('SELECT id FROM users WHERE uid = ?');
-                const user = userStmt.get(hashuid);
-                if (user) {
-                    return user.id;
-                }
-        
-                // 新しいユーザーを作成
-                const stmt = db_for_app7.prepare('INSERT INTO users (uid) VALUES (?)');
-                const info = stmt.run(hashuid);
-        
-                const idStmt = db_for_app7.prepare('SELECT id FROM users WHERE uid = ?');
-                const newUser = idStmt.get(hashuid);
-                console.log(
-        "hashuid,", hashuid,
-        "user,", user,
-        // "user.id,", user.id,
-        "newUser,", newUser,
-                );
-                return newUser.id;
-            } catch (error) {
-                console.error('Error creating user:', error);
-                res.status(500).json({ message: 'Internal server error' });
-            }
-        }
         const { name, description, kpi, due_date, difficulty, uid} = req.body;
-        // app7_get_user_idとcreate_usersでuidをチェック。なければ作成
+        // get_user_idとcreate_usersでuidをチェック。なければ作成
 
         // uidをSHA256でハッシュ化
         const hashuid = crypto.createHash('sha256').update(uid).digest('hex');
         // ハッシュ化されたuidを使用してユーザーIDを取得
-        let user_id = await app7_get_user_id(hashuid, db_for_app7);
+        let user_id = await get_user_id(hashuid, db_for_app7);
         console.log(user_id);
         if (!user_id) {
             await create_users(req, res);
-            user_id = await app7_get_user_id(hashuid, db_for_app7);
+            user_id = await get_user_id(hashuid, db_for_app7);
         }
 
         const project = { name, description, kpi, due_date, difficulty };
-        const errors = app7_all_validation_fn.validateProject(project);
+        const errors = all_validation_fn.validateProject(project);
         if (errors.length > 0) {
             return res.status(400).json({ errors });
         }
         console.log("user_id", user_id);
 
-        const userErrors = await app7_sql_validation_fn.validateUserId(await app7_get_user_id(hashuid, db_for_app7), db_for_app7);
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(hashuid, db_for_app7), db_for_app7);
         if (userErrors.length > 0) {
             return res.status(404).json({ errors: userErrors });
         }
@@ -420,23 +420,23 @@ console.log(req.body);
         due_date = new Date(due_date).toISOString();
 
         const pack = { plan_description, plan_done, do_description, do_done, check_description, check_done, act_description, act_done, due_date };
-        const errors = app7_all_validation_fn.validatePack(pack);
+        const errors = all_validation_fn.validatePack(pack);
         if (errors.length > 0) {
             return res.status(400).json({ errors });
         }
-        const projectErrors = await app7_sql_validation_fn.validateProjectId(project_id, db_for_app7);
+        const projectErrors = await sql_validation_fn.validateProjectId(project_id, db_for_app7);
         if (projectErrors.length > 0) {
             return res.status(404).json({ errors: projectErrors });
         }
         const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
-        const user_id = await app7_get_user_id(hashedUid, db_for_app7);
+        const user_id = await get_user_id(hashedUid, db_for_app7);
         if(user_id === false) {
             console.log("user_id", user_id);
             console.log("// エラー処理");
             // エラー処理
             return res.status(404).json({ errors: ['User not found'] });
         }
-        const userErrors = await app7_sql_validation_fn.validateUserId(await app7_get_user_id(hashedUid, db_for_app7), db_for_app7);
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(hashedUid, db_for_app7), db_for_app7);
         if (userErrors.length > 0) {
             return res.status(404).json({ errors: userErrors });
         }
@@ -454,17 +454,17 @@ app.post('/app7/create_links', async (req, res) => {
         console.log(req.body);
         const { pack_id, url, description, stage, uid } = req.body;
         const link = { url, description, stage };
-        const errors = app7_all_validation_fn.validateLink(link);
+        const errors = all_validation_fn.validateLink(link);
         if (errors.length > 0) {
             return res.status(400).json({ errors });
         }
-        const packErrors = await app7_sql_validation_fn.validatePackId(pack_id, db_for_app7);
+        const packErrors = await sql_validation_fn.validatePackId(pack_id, db_for_app7);
         if (packErrors.length > 0) {
             return res.status(404).json({ errors: packErrors });
         }
         const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
 
-        const userErrors = await app7_sql_validation_fn.validateUserId(await app7_get_user_id(hashedUid, db_for_app7), db_for_app7);
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(hashedUid, db_for_app7), db_for_app7);
         if (userErrors.length > 0) {
             return res.status(404).json({ errors: userErrors });
         }
@@ -481,12 +481,12 @@ app.post('/app7/delete_projects', async (req, res) => {
     try {
         const { project_id, uid } = req.body;
         console.log(req.body);
-        const projectErrors = await app7_sql_validation_fn.validateProjectId(project_id, db_for_app7);
+        const projectErrors = await sql_validation_fn.validateProjectId(project_id, db_for_app7);
         if (projectErrors.length > 0) {
             return res.status(404).json({ errors: projectErrors });
         }
         const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
-        const userErrors = await app7_sql_validation_fn.validateUserId(await app7_get_user_id(hashedUid, db_for_app7), db_for_app7);
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(hashedUid, db_for_app7), db_for_app7);
         if (userErrors.length > 0) {
             return res.status(404).json({ errors: userErrors });
         }
@@ -508,12 +508,12 @@ app.post('/app7/delete_projects', async (req, res) => {
 app.post('/app7/delete_packs', async (req, res) => {
     try {
         const { pack_id, uid } = req.body;
-        const packErrors = await app7_sql_validation_fn.validatePackId(pack_id, db_for_app7);
+        const packErrors = await sql_validation_fn.validatePackId(pack_id, db_for_app7);
         if (packErrors.length > 0) {
             return res.status(404).json({ errors: packErrors });
         }
         const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
-        const userErrors = await app7_sql_validation_fn.validateUserId(await app7_get_user_id(hashedUid, db_for_app7), db_for_app7);
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(hashedUid, db_for_app7), db_for_app7);
         if (userErrors.length > 0) {
             return res.status(404).json({ errors: userErrors });
         }
@@ -534,12 +534,12 @@ app.post('/app7/delete_packs', async (req, res) => {
 app.post('/app7/delete_links', async (req, res) => {
     try {
         const { link_id, uid } = req.body;
-        const linkErrors = await app7_sql_validation_fn.validateLinkId(link_id, db_for_app7);
+        const linkErrors = await sql_validation_fn.validateLinkId(link_id, db_for_app7);
         if (linkErrors.length > 0) {
             return res.status(404).json({ errors: linkErrors });
         }
         const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
-        const userErrors = await app7_sql_validation_fn.validateUserId(await app7_get_user_id(hashedUid, db_for_app7), db_for_app7);
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(hashedUid, db_for_app7), db_for_app7);
         if (userErrors.length > 0) {
             return res.status(404).json({ errors: userErrors });
         }
@@ -555,16 +555,16 @@ app.post('/app7/update_projects', async (req, res) => {
     try {
         const { project_id, name, description, kpi, due_date, difficulty, uid } = req.body;
         const project = { name, description, kpi, due_date, difficulty };
-        const errors = app7_all_validation_fn.validateProject(project);
+        const errors = all_validation_fn.validateProject(project);
         if (errors.length > 0) {
             return res.status(400).json({ errors });
         }
-        const projectErrors = await app7_sql_validation_fn.validateProjectId(project_id, db_for_app7);
+        const projectErrors = await sql_validation_fn.validateProjectId(project_id, db_for_app7);
         if (projectErrors.length > 0) {
             return res.status(404).json({ errors: projectErrors });
         }
         const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
-        const userErrors = await app7_sql_validation_fn.validateUserId(await app7_get_user_id(hashedUid, db_for_app7), db_for_app7);
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(hashedUid, db_for_app7), db_for_app7);
         if (userErrors.length > 0) {
             return res.status(404).json({ errors: userErrors });
         }
@@ -580,16 +580,16 @@ app.post('/app7/update_packs', async (req, res) => {
     try {
         const { pack_id, project_id, plan_description, plan_done, do_description, do_done, check_description, check_done, act_description, act_done, due_date, uid } = req.body;
         let pack = { plan_description, plan_done, do_description, do_done, check_description, check_done, act_description, act_done, due_date };
-        const errors = app7_all_validation_fn.validatePack(pack);
+        const errors = all_validation_fn.validatePack(pack);
         if (errors.length > 0) {
             return res.status(400).json({ errors });
         }
-        const packErrors = await app7_sql_validation_fn.validatePackId(pack_id, db_for_app7);
+        const packErrors = await sql_validation_fn.validatePackId(pack_id, db_for_app7);
         if (packErrors.length > 0) {
             return res.status(404).json({ errors: packErrors });
         }
         const hashedUid = crypto.createHash('sha256').update(uid).digest('hex');
-        const userErrors = await app7_sql_validation_fn.validateUserId(await app7_get_user_id(hashedUid, db_for_app7), db_for_app7);
+        const userErrors = await sql_validation_fn.validateUserId(await get_user_id(hashedUid, db_for_app7), db_for_app7);
         if (userErrors.length > 0) {
             return res.status(404).json({ errors: userErrors });
         }
