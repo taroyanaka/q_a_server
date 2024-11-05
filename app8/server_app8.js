@@ -8,11 +8,12 @@ const crypto = require('crypto');
 app.use(bodyParser.json());
 app.use(cors());
 
+// データベースの初期化
+const db_for_app8 = new sqlite('./app8.db');
+
 const port = 8000;
 app.listen(port, "0.0.0.0", () => console.log(`App listening!! at http://localhost:${port}`));
 
-// データベースの初期化
-const db_for_app8 = new sqlite('./app8.db');
 
 const validators = {
     validateAuthUid(uid) {
@@ -55,8 +56,16 @@ const validators = {
             isDescriptionValid,
             areTagsValid
         };
-    },
+    }
 };
+
+
+// パラメーターにuidが存在しない場合は、エラーを返す関数(引数はuid)
+function checkAuthUid(uid) {
+    if (!uid) {
+        return res.status(400).json({ message: 'auth_uid is required' });
+    }
+}
 
 // auth_uidをSHA-256でハッシュ化する関数
 function hashAuthUid(auth_uid) {
@@ -142,7 +151,7 @@ app.post('/init_db', (req, res) => {
     }
 });
 
-app.get('/', (req, res) => {
+app.post('/', (req, res) => {
     try {
         const allDescs = db_for_app8.prepare(`SELECT * FROM desc`).all();
         const allTags = db_for_app8.prepare(`SELECT * FROM tags`).all();
@@ -172,7 +181,15 @@ app.get('/', (req, res) => {
             return desc;
         });
 
-        res.status(200).json({ allDescs: new_allDescs_with_tags, allTags: allTags });
+        // req.bodyにauth_uidが存在する場合は追加オブジェクトを取得する
+        let any_user_new_allDescs_with_tags = null;
+        if(req.body.auth_uid){
+            // 指定したauth_uidのnew_allDescs_with_tags
+            any_user_new_allDescs_with_tags = new_allDescs_with_tags.filter(desc => desc.auth_uid === hashAuthUid(req.body.auth_uid));
+        }
+
+
+        res.status(200).json({ allDescs: new_allDescs_with_tags, allTags: allTags, any_user_new_allDescs_with_tags: any_user_new_allDescs_with_tags });
     } catch (error) {
         res.status(500).json({ message: 'Internal server error' });
     }
@@ -181,6 +198,7 @@ app.get('/', (req, res) => {
 app.post('/insert_desc', (req, res) => {
     try {
         let { auth_uid, title, description, tags } = req.body;
+        checkAuthUid(auth_uid);
         auth_uid = hashAuthUid(auth_uid);
         const created_at = new Date().toISOString();
         const updated_at = created_at;
@@ -190,12 +208,12 @@ app.post('/insert_desc', (req, res) => {
         if (!validationResults.isAuthUidValid) {
             return res.status(400).json({ message: 'Invalid auth_uid' });
         }
-        if (!validationResults.isCreatedAtValid) {
-            return res.status(400).json({ message: 'Invalid created_at' });
-        }
-        if (!validationResults.isUpdatedAtValid) {
-            return res.status(400).json({ message: 'Invalid updated_at' });
-        }
+        // if (!validationResults.isCreatedAtValid) {
+        //     return res.status(400).json({ message: 'Invalid created_at' });
+        // }
+        // if (!validationResults.isUpdatedAtValid) {
+        //     return res.status(400).json({ message: 'Invalid updated_at' });
+        // }
         if (!validationResults.isTitleValid) {
             return res.status(400).json({ message: 'Invalid title' });
         }
@@ -226,6 +244,7 @@ app.post('/insert_desc', (req, res) => {
 app.post('/update_desc', (req, res) => {
     try {
         let { desc_id, auth_uid, title, description, tags } = req.body;
+        checkAuthUid(auth_uid);
         auth_uid = hashAuthUid(auth_uid);
         const updated_at = new Date().toISOString();
 
@@ -275,6 +294,7 @@ app.post('/update_desc', (req, res) => {
 app.post('/delete_desc', (req, res) => {
     try {
         let { id, auth_uid } = req.body;
+        checkAuthUid(auth_uid);
         auth_uid = hashAuthUid(auth_uid);
 
         if (!validators.validateAuthUid(auth_uid)) {
@@ -307,6 +327,7 @@ app.post('/delete_desc', (req, res) => {
 app.post('/delete_desc_tag', (req, res) => {
     try {
         let { id, desc_id, auth_uid } = req.body;
+        checkAuthUid(auth_uid);
         auth_uid = hashAuthUid(auth_uid);
 
         if (!validators.validateAuthUid(auth_uid)) {
