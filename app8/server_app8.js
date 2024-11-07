@@ -201,7 +201,7 @@ app.post('/insert_desc', (req, res) => {
         checkAuthUid(auth_uid);
         auth_uid = hashAuthUid(auth_uid);
         const created_at = new Date().toISOString();
-        const updated_at = created_at;
+        const updated_at = new Date().toISOString();
 
         const validationResults = validators.validateData(req.body);
 
