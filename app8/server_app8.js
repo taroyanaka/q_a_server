@@ -352,3 +352,52 @@ app.post('/delete_desc_tag', (req, res) => {
         res.status(500).json({ message: 'Internal server error' });
     }
 });
+
+app.post('/insert_desc_tag', (req, res) => {
+    try {
+        console.log(1);
+        let { desc_id, name } = req.body;
+        console.log(req.body);
+        const created_at = new Date().toISOString();
+        const updated_at = new Date().toISOString();
+        console.log(2);
+
+        const selectTagStmt = db_for_app8.prepare(`
+            SELECT id FROM tags WHERE name = ?
+        `);
+        const existingTag = selectTagStmt.get(name);
+        console.log(3);
+        
+        let tagId;
+        if (existingTag) {
+            tagId = existingTag.id;
+            console.log(4);
+        } else {
+            console.log(5);
+            // エラーチェック
+            if (!validators.validateTagName(name)) {
+                console.log(6);
+                return res.status(400).json({ message: 'Invalid tag name' });
+            }
+            console.log(7);
+
+            const insertTagStmt = db_for_app8.prepare(`
+                INSERT INTO tags (name, created_at, updated_at)
+                VALUES (?, ?, ?)
+            `);
+            const result = insertTagStmt.run(name, created_at, updated_at);
+            tagId = result.lastInsertRowid;
+        }
+        
+        const insertDescTagsStmt = db_for_app8.prepare(`
+            INSERT INTO desc_tags (desc_id, tag_id)
+            VALUES (?, ?)
+        `);
+        insertDescTagsStmt.run(desc_id, tagId);
+
+        res.status(201).json({ message: 'Description tag inserted successfully', tagId });
+    } catch (error) {
+        res.status(500).json({ message: 'Internal server error' });
+    }
+});
+
