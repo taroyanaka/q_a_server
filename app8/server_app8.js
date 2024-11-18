@@ -181,12 +181,13 @@ app.post('/', (req, res) => {
             return desc;
         });
 
-        // req.bodyにauth_uidが存在する場合は追加オブジェクトを取得する
+        const any_user_new_allDescs_with_tags = req.body.auth_uid ? new_allDescs_with_tags.filter(desc => desc.auth_uid === hashAuthUid(req.body.auth_uid)) : [];
+
         let new_allDescs_with_tags_without_auth_uid = [];
         let any_user_new_allDescs_with_tags_without_auth_uid = [];
         if(req.body.auth_uid){
+            // auth_uid以外のユーザーのデータを取得
             new_allDescs_with_tags_without_auth_uid = new_allDescs_with_tags.map(desc => {
-                // auth_uid以外のロウデータを取得
                 let new_obj = {};
                 Object.keys(desc).forEach(key => {
                     if(key !== 'auth_uid'){
@@ -195,8 +196,7 @@ app.post('/', (req, res) => {
                 });
                 return new_obj;
             })
-            any_user_new_allDescs_with_tags_without_auth_uid = new_allDescs_with_tags.map(desc => {
-                // auth_uid以外のユーザーのデータを取得
+            any_user_new_allDescs_with_tags_without_auth_uid = any_user_new_allDescs_with_tags.map(desc => {
                 let new_obj = {};
                 Object.keys(desc).forEach(key => {
                     if(key !== 'auth_uid'){
@@ -207,11 +207,6 @@ app.post('/', (req, res) => {
             });
         }
 
-
-
-
-
-        // res.status(200).json({ allDescs: new_allDescs_with_tags, allTags: allTags, any_user_new_allDescs_with_tags: any_user_new_allDescs_with_tags });
         res.status(200).json({ allDescs: new_allDescs_with_tags_without_auth_uid, allTags: allTags, any_user_new_allDescs_with_tags: any_user_new_allDescs_with_tags_without_auth_uid });
     } catch (error) {
         res.status(500).json({ message: 'Internal server error' });
