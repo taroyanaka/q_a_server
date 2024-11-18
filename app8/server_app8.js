@@ -182,14 +182,37 @@ app.post('/', (req, res) => {
         });
 
         // req.bodyにauth_uidが存在する場合は追加オブジェクトを取得する
-        let any_user_new_allDescs_with_tags = null;
+        let new_allDescs_with_tags_without_auth_uid = [];
+        let any_user_new_allDescs_with_tags_without_auth_uid = [];
         if(req.body.auth_uid){
-            // 指定したauth_uidのnew_allDescs_with_tags
-            any_user_new_allDescs_with_tags = new_allDescs_with_tags.filter(desc => desc.auth_uid === hashAuthUid(req.body.auth_uid));
+            new_allDescs_with_tags_without_auth_uid = new_allDescs_with_tags.map(desc => {
+                // auth_uid以外のロウデータを取得
+                let new_obj = {};
+                Object.keys(desc).forEach(key => {
+                    if(key !== 'auth_uid'){
+                        new_obj[key] = desc[key];
+                    }
+                });
+                return new_obj;
+            })
+            any_user_new_allDescs_with_tags_without_auth_uid = new_allDescs_with_tags.map(desc => {
+                // auth_uid以外のユーザーのデータを取得
+                let new_obj = {};
+                Object.keys(desc).forEach(key => {
+                    if(key !== 'auth_uid'){
+                        new_obj[key] = desc[key];
+                    }
+                });
+                return new_obj;
+            });
         }
 
 
-        res.status(200).json({ allDescs: new_allDescs_with_tags, allTags: allTags, any_user_new_allDescs_with_tags: any_user_new_allDescs_with_tags });
+
+
+
+        // res.status(200).json({ allDescs: new_allDescs_with_tags, allTags: allTags, any_user_new_allDescs_with_tags: any_user_new_allDescs_with_tags });
+        res.status(200).json({ allDescs: new_allDescs_with_tags_without_auth_uid, allTags: allTags, any_user_new_allDescs_with_tags: any_user_new_allDescs_with_tags_without_auth_uid });
     } catch (error) {
         res.status(500).json({ message: 'Internal server error' });
     }
