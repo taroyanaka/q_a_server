@@ -151,63 +151,129 @@ app.post('/init_db', (req, res) => {
     }
 });
 
+
+function get_all(req){
+try {
+    const allDescs = db_for_app8.prepare(`SELECT * FROM desc`).all();
+    const allTags = db_for_app8.prepare(`SELECT * FROM tags`).all();
+    const descTags = db_for_app8.prepare(`SELECT * FROM desc_tags`).all();
+
+    let allDescs_with_tags = allDescs.map(desc => {
+        desc.tags = descTags
+            .filter(descTag => descTag.desc_id === desc.id)
+            .map(descTag => {
+                const tag = allTags.find(tag => tag.id === descTag.tag_id);
+                return tag;
+            });
+        return desc;
+    });
+
+    const new_allDescs_with_tags = allDescs_with_tags.map(desc => {
+        if (desc.tags) {
+            let new_des_tags = desc.tags.map(tag => {
+                tag.desc_id = desc.id;
+                return tag;
+            });
+            new_des_tags = JSON.parse(JSON.stringify(new_des_tags));
+            desc.tags = new_des_tags;
+        } else {
+            desc.tags = [];
+        }
+        return desc;
+    });
+
+    const any_user_new_allDescs_with_tags = req.body.auth_uid ? new_allDescs_with_tags.filter(desc => desc.auth_uid === hashAuthUid(req.body.auth_uid)) : [];
+
+    let new_allDescs_with_tags_without_auth_uid = [];
+    let any_user_new_allDescs_with_tags_without_auth_uid = [];
+    if(req.body.auth_uid){
+        // auth_uid以外のユーザーのデータを取得
+        new_allDescs_with_tags_without_auth_uid = new_allDescs_with_tags.map(desc => {
+            let new_obj = {};
+            Object.keys(desc).forEach(key => {
+                if(key !== 'auth_uid'){
+                    new_obj[key] = desc[key];
+                }
+            });
+            return new_obj;
+        })
+        any_user_new_allDescs_with_tags_without_auth_uid = any_user_new_allDescs_with_tags.map(desc => {
+            let new_obj = {};
+            Object.keys(desc).forEach(key => {
+                if(key !== 'auth_uid'){
+                    new_obj[key] = desc[key];
+                }
+            });
+            return new_obj;
+        });
+    }
+
+    const all_objects = { allDescs: new_allDescs_with_tags_without_auth_uid, allTags: allTags, any_user_new_allDescs_with_tags: any_user_new_allDescs_with_tags_without_auth_uid };
+    return all_objects;
+} catch (error) {
+    return { message: 'Internal server error' };
+}
+}
+
 app.post('/', (req, res) => {
     try {
-        const allDescs = db_for_app8.prepare(`SELECT * FROM desc`).all();
-        const allTags = db_for_app8.prepare(`SELECT * FROM tags`).all();
-        const descTags = db_for_app8.prepare(`SELECT * FROM desc_tags`).all();
+        // const allDescs = db_for_app8.prepare(`SELECT * FROM desc`).all();
+        // const allTags = db_for_app8.prepare(`SELECT * FROM tags`).all();
+        // const descTags = db_for_app8.prepare(`SELECT * FROM desc_tags`).all();
 
-        let allDescs_with_tags = allDescs.map(desc => {
-            desc.tags = descTags
-                .filter(descTag => descTag.desc_id === desc.id)
-                .map(descTag => {
-                    const tag = allTags.find(tag => tag.id === descTag.tag_id);
-                    return tag;
-                });
-            return desc;
-        });
+        // let allDescs_with_tags = allDescs.map(desc => {
+        //     desc.tags = descTags
+        //         .filter(descTag => descTag.desc_id === desc.id)
+        //         .map(descTag => {
+        //             const tag = allTags.find(tag => tag.id === descTag.tag_id);
+        //             return tag;
+        //         });
+        //     return desc;
+        // });
 
-        const new_allDescs_with_tags = allDescs_with_tags.map(desc => {
-            if (desc.tags) {
-                let new_des_tags = desc.tags.map(tag => {
-                    tag.desc_id = desc.id;
-                    return tag;
-                });
-                new_des_tags = JSON.parse(JSON.stringify(new_des_tags));
-                desc.tags = new_des_tags;
-            } else {
-                desc.tags = [];
-            }
-            return desc;
-        });
+        // const new_allDescs_with_tags = allDescs_with_tags.map(desc => {
+        //     if (desc.tags) {
+        //         let new_des_tags = desc.tags.map(tag => {
+        //             tag.desc_id = desc.id;
+        //             return tag;
+        //         });
+        //         new_des_tags = JSON.parse(JSON.stringify(new_des_tags));
+        //         desc.tags = new_des_tags;
+        //     } else {
+        //         desc.tags = [];
+        //     }
+        //     return desc;
+        // });
 
-        const any_user_new_allDescs_with_tags = req.body.auth_uid ? new_allDescs_with_tags.filter(desc => desc.auth_uid === hashAuthUid(req.body.auth_uid)) : [];
+        // const any_user_new_allDescs_with_tags = req.body.auth_uid ? new_allDescs_with_tags.filter(desc => desc.auth_uid === hashAuthUid(req.body.auth_uid)) : [];
 
-        let new_allDescs_with_tags_without_auth_uid = [];
-        let any_user_new_allDescs_with_tags_without_auth_uid = [];
-        if(req.body.auth_uid){
-            // auth_uid以外のユーザーのデータを取得
-            new_allDescs_with_tags_without_auth_uid = new_allDescs_with_tags.map(desc => {
-                let new_obj = {};
-                Object.keys(desc).forEach(key => {
-                    if(key !== 'auth_uid'){
-                        new_obj[key] = desc[key];
-                    }
-                });
-                return new_obj;
-            })
-            any_user_new_allDescs_with_tags_without_auth_uid = any_user_new_allDescs_with_tags.map(desc => {
-                let new_obj = {};
-                Object.keys(desc).forEach(key => {
-                    if(key !== 'auth_uid'){
-                        new_obj[key] = desc[key];
-                    }
-                });
-                return new_obj;
-            });
-        }
+        // let new_allDescs_with_tags_without_auth_uid = [];
+        // let any_user_new_allDescs_with_tags_without_auth_uid = [];
+        // if(req.body.auth_uid){
+        //     new_allDescs_with_tags_without_auth_uid = new_allDescs_with_tags.map(desc => {
+        //         let new_obj = {};
+        //         Object.keys(desc).forEach(key => {
+        //             if(key !== 'auth_uid'){
+        //                 new_obj[key] = desc[key];
+        //             }
+        //         });
+        //         return new_obj;
+        //     })
+        //     any_user_new_allDescs_with_tags_without_auth_uid = any_user_new_allDescs_with_tags.map(desc => {
+        //         let new_obj = {};
+        //         Object.keys(desc).forEach(key => {
+        //             if(key !== 'auth_uid'){
+        //                 new_obj[key] = desc[key];
+        //             }
+        //         });
+        //         return new_obj;
+        //     });
+        // }
 
-        res.status(200).json({ allDescs: new_allDescs_with_tags_without_auth_uid, allTags: allTags, any_user_new_allDescs_with_tags: any_user_new_allDescs_with_tags_without_auth_uid });
+        const all_obj = get_all(req);
+
+        // res.status(200).json({ allDescs: new_allDescs_with_tags_without_auth_uid, allTags: allTags, any_user_new_allDescs_with_tags: any_user_new_allDescs_with_tags_without_auth_uid });
+        res.status(200).json(all_obj);
     } catch (error) {
         res.status(500).json({ message: 'Internal server error' });
     }
@@ -251,9 +317,10 @@ app.post('/insert_desc', (req, res) => {
         const descId = result.lastInsertRowid;
 
         tags.forEach(tag => addTag_for_app8(descId, tag.name, created_at, updated_at));
+        const res_obj = { message: 'Description and tags inserted successfully', descId };
 
-        res.status(201).json({ message: 'Description and tags inserted successfully', descId });
-
+        Object.assign(res_obj, get_all(req));
+        res.status(201).json(res_obj);
     } catch (error) {
         res.status(500).json({ message: 'Internal server error' });
     }
@@ -303,7 +370,9 @@ app.post('/update_desc', (req, res) => {
 
         tags.forEach(tag => addTag_for_app8(desc_id, tag.name, tag.created_at, tag.updated_at));
 
-        res.status(200).json({ message: 'Description and tags updated successfully' });
+            const res_obj = { message: 'Description and tags updated successfully', descId: desc_id };
+            Object.assign(res_obj, get_all(req));
+        res.status(200).json(res_obj);
     } catch (error) {
         res.status(500).json({ message: 'Internal server error' });
     }
@@ -336,7 +405,10 @@ app.post('/delete_desc', (req, res) => {
         `);
         deleteDescStmt.run(id);
 
-        res.status(200).json({ message: 'Description deleted successfully' });
+        const res_obj = { message: 'Description deleted successfully' };
+        Object.assign(res_obj, get_all(req));
+
+        res.status(200).json(res_obj);
     } catch (error) {
         res.status(500).json({ message: 'Internal server error' });
     }
@@ -365,7 +437,10 @@ app.post('/delete_desc_tag', (req, res) => {
         `);
         deleteDescTagStmt.run(id, desc_id);
 
-        res.status(200).json({ message: 'Description tag deleted successfully' });
+        const res_obj = { message: 'Description tag deleted successfully' };
+
+        Object.assign(res_obj, get_all(req));
+        res.status(200).json(res_obj);
     } catch (error) {
         res.status(500).json({ message: 'Internal server error' });
     }
@@ -413,7 +488,10 @@ app.post('/insert_desc_tag', (req, res) => {
         `);
         insertDescTagsStmt.run(desc_id, tagId);
 
-        res.status(201).json({ message: 'Description tag inserted successfully', tagId });
+        const res_obj = { message: 'Description tag inserted successfully', tagId };
+        Object.assign(res_obj, get_all(req));
+
+        res.status(201).json(res_obj);
     } catch (error) {
         res.status(500).json({ message: 'Internal server error' });
     }
