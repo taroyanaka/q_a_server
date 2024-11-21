@@ -154,6 +154,7 @@ app.post('/init_db', (req, res) => {
 
 function get_all(req){
 try {
+    console.log(req.body);
     const allDescs = db_for_app8.prepare(`SELECT * FROM desc`).all();
     const allTags = db_for_app8.prepare(`SELECT * FROM tags`).all();
     const descTags = db_for_app8.prepare(`SELECT * FROM desc_tags`).all();
@@ -182,11 +183,20 @@ try {
         return desc;
     });
 
+    console.log(0);
+    console.log(new_allDescs_with_tags);
+    console.log(0.5);
+    console.log(new_allDescs_with_tags.filter(desc => desc.auth_uid === hashAuthUid(req.body.auth_uid)));
+
     const any_user_new_allDescs_with_tags = req.body.auth_uid ? new_allDescs_with_tags.filter(desc => desc.auth_uid === hashAuthUid(req.body.auth_uid)) : [];
+
+    console.log(any_user_new_allDescs_with_tags);
 
     let new_allDescs_with_tags_without_auth_uid = [];
     let any_user_new_allDescs_with_tags_without_auth_uid = [];
+    console.log(1);
     if(req.body.auth_uid){
+        console.log(2);
         // auth_uid以外のユーザーのデータを取得
         new_allDescs_with_tags_without_auth_uid = new_allDescs_with_tags.map(desc => {
             let new_obj = {};
@@ -197,16 +207,25 @@ try {
             });
             return new_obj;
         })
+        console.log(3);
         any_user_new_allDescs_with_tags_without_auth_uid = any_user_new_allDescs_with_tags.map(desc => {
+            console.log(any_user_new_allDescs_with_tags);
             let new_obj = {};
             Object.keys(desc).forEach(key => {
+                console.log(key);
                 if(key !== 'auth_uid'){
+                    console.log(4);
                     new_obj[key] = desc[key];
                 }
             });
             return new_obj;
         });
+        console.log(5);
+        console.log(any_user_new_allDescs_with_tags_without_auth_uid);
+    }else{
+        new_allDescs_with_tags_without_auth_uid = new_allDescs_with_tags;
     }
+
 
     const all_objects = { allDescs: new_allDescs_with_tags_without_auth_uid, allTags: allTags, any_user_new_allDescs_with_tags: any_user_new_allDescs_with_tags_without_auth_uid };
     return all_objects;
