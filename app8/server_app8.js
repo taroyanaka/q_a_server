@@ -151,81 +151,36 @@ app.post('/init_db', (req, res) => {
 
 function get_all(req) {
     try {
-        console.log(req.body);
         const all_descs = db_for_app8.prepare(`SELECT * FROM desc`).all();
         const all_tags = db_for_app8.prepare(`SELECT * FROM tags`).all();
         const desc_tags = db_for_app8.prepare(`SELECT * FROM desc_tags`).all();
 
-        let all_descs_with_tags = all_descs.map(desc => {
-            desc.tags = desc_tags
-                .filter(desc_tag => desc_tag.desc_id === desc.id)
-                .map(desc_tag => {
-                    const tag = all_tags.find(tag => tag.id === desc_tag.tag_id);
-                    return tag;
-                });
-            return desc;
-        });
+        const all_descs_with_tags = all_descs.map(desc => ({
+            ...desc,
+            tags: desc_tags.filter(dt => dt.desc_id === desc.id).map(dt => all_tags.find(tag => tag.id === dt.tag_id))
+        }));
 
-        const new_all_descs_with_tags = all_descs_with_tags.map(desc => {
-            if (desc.tags) {
-                let new_desc_tags = desc.tags.map(tag => {
-                    tag.desc_id = desc.id;
-                    return tag;
-                });
-                new_desc_tags = JSON.parse(JSON.stringify(new_desc_tags));
-                desc.tags = new_desc_tags;
-            } else {
-                desc.tags = [];
-            }
-            return desc;
-        });
+        const new_all_descs_with_tags = all_descs_with_tags.map(desc => ({
+            ...desc,
+            tags: desc.tags.map(tag => ({ ...tag, desc_id: desc.id }))
+        }));
 
-        console.log(0);
-        console.log(new_all_descs_with_tags);
-        console.log(0.5);
-        console.log(new_all_descs_with_tags.filter(desc => desc.auth_uid === hash_auth_uid(req.body.auth_uid)));
+        const filter_auth_uid = desc => desc.auth_uid === hash_auth_uid(req.body.auth_uid);
+        const remove_auth_uid = desc => {
+            const { auth_uid, ...rest } = desc;
+            return rest;
+        };
 
-        const any_user_new_all_descs_with_tags = req.body.auth_uid ? new_all_descs_with_tags.filter(desc => desc.auth_uid === hash_auth_uid(req.body.auth_uid)) : [];
+        const any_user_new_all_descs_with_tags = req.body.auth_uid ? new_all_descs_with_tags.filter(filter_auth_uid) : [];
+        const new_all_descs_with_tags_without_auth_uid = req.body.auth_uid ? new_all_descs_with_tags.map(remove_auth_uid) : [];
+        const any_user_new_all_descs_with_tags_without_auth_uid = req.body.auth_uid ? any_user_new_all_descs_with_tags.map(remove_auth_uid) : [];
 
-        console.log(any_user_new_all_descs_with_tags);
+        const all_objects = {
+            all_descs: new_all_descs_with_tags_without_auth_uid,
+            all_tags,
+            any_user_new_all_descs_with_tags: any_user_new_all_descs_with_tags_without_auth_uid
+        };
 
-        let new_all_descs_with_tags_without_auth_uid = [];
-        let any_user_new_all_descs_with_tags_without_auth_uid = [];
-        console.log(1);
-        if (req.body.auth_uid) {
-            console.log(2);
-            // auth_uid以外のユーザーのデータを取得
-            new_all_descs_with_tags_without_auth_uid = new_all_descs_with_tags.map(desc => {
-                let new_obj = {};
-                Object.keys(desc).forEach(key => {
-                    if (key !== 'auth_uid') {
-                        new_obj[key] = desc[key];
-                    }
-                });
-                return new_obj;
-            })
-            console.log(3);
-            any_user_new_all_descs_with_tags_without_auth_uid = any_user_new_all_descs_with_tags.map(desc => {
-                console.log(any_user_new_all_descs_with_tags);
-                let new_obj = {};
-                Object.keys(desc).forEach(key => {
-                    console.log(key);
-                    if (key !== 'auth_uid') {
-                        console.log(4);
-                        new_obj[key] = desc[key];
-                    }
-                });
-                return new_obj;
-            });
-            console.log(5);
-            console.log(any_user_new_all_descs_with_tags_without_auth_uid);
-        }
-        // all_tags, new_all_descs_with_tags_without_auth_uidとany_user_new_all_descs_with_tags_without_auth_uidそれぞれで、titile, descriptionが1文字未満のdescを削除
-        function final_filter(array) {
-            return array.filter(desc => desc.title.length >= 1 && desc.description.length >= 1);
-        }
-
-        const all_objects = { all_descs: new_all_descs_with_tags_without_auth_uid, all_tags: all_tags, any_user_new_all_descs_with_tags: any_user_new_all_descs_with_tags_without_auth_uid };
         return all_objects;
     } catch (error) {
         return { message: 'Internal server error' };
