@@ -7,12 +7,19 @@ const crypto = require('crypto');
 
 app.use(bodyParser.json());
 app.use(cors());
+const port = 8000;
+app.listen(port, "0.0.0.0", () => console.log(`App listening!! at http://localhost:${port}`));
+
+
+
+
 
 // データベースの初期化
 const db_for_app8 = new sqlite('./app8.db');
 
-const port = 8000;
-app.listen(port, "0.0.0.0", () => console.log(`App listening!! at http://localhost:${port}`));
+// glitch.comの仕様として.dataディレクトリ以下が外部に非表示になるため
+// const db_for_app8 = new sqlite('./.data/app8.db');
+
 
 const validators = {
     validate_auth_uid(uid) {
@@ -140,7 +147,7 @@ const init_db = () => {
     }
 }
 
-app.post('/init_db', (req, res) => {
+app.post('/app8/init_db', (req, res) => {
     try {
         init_db();
         res.status(200).json({ message: 'Database initialized successfully' });
@@ -187,7 +194,7 @@ function get_all(req) {
     }
 }
 
-app.post('/', (req, res) => {
+app.post('/app8/', (req, res) => {
     try {
         const all_obj = get_all(req);
 
@@ -197,7 +204,7 @@ app.post('/', (req, res) => {
     }
 });
 
-app.post('/insert_desc', (req, res) => {
+app.post('/app8/insert_desc', (req, res) => {
     try {
         let { auth_uid, title, description, tags } = req.body;
         check_auth_uid(auth_uid);
@@ -238,7 +245,7 @@ app.post('/insert_desc', (req, res) => {
     }
 });
 
-app.post('/update_desc', (req, res) => {
+app.post('/app8/update_desc', (req, res) => {
     try {
         let { desc_id, auth_uid, title, description, tags } = req.body;
         check_auth_uid(auth_uid);
@@ -290,7 +297,7 @@ app.post('/update_desc', (req, res) => {
     }
 });
 
-app.post('/delete_desc', (req, res) => {
+app.post('/app8/delete_desc', (req, res) => {
     try {
         let { id, auth_uid } = req.body;
         check_auth_uid(auth_uid);
@@ -326,7 +333,7 @@ app.post('/delete_desc', (req, res) => {
     }
 });
 
-app.post('/delete_desc_tag', (req, res) => {
+app.post('/app8/delete_desc_tag', (req, res) => {
     try {
         let { id, desc_id, auth_uid } = req.body;
         check_auth_uid(auth_uid);
@@ -358,7 +365,7 @@ app.post('/delete_desc_tag', (req, res) => {
     }
 });
 
-app.post('/insert_desc_tag', (req, res) => {
+app.post('/app8/insert_desc_tag', (req, res) => {
     try {
         console.log(1);
         let { desc_id, name } = req.body;
