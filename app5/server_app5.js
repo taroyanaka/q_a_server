@@ -7,29 +7,29 @@
     // UI挙動チェック
     // エラー表示が正しいかチェック
 
-    ///////////////////////////server_express.js/////////////////////////////
-    ///////////////////////////server_express.js/////////////////////////////
-    ///////////////////////////server_express.js/////////////////////////////
-    
-    ///////////////////////////AI/////////////////////////////
-    // 以下のコードを以下のルールで書き換えて
-    // pop_up_url => app5
-    // app5_title => app5_title TEXT not nullで1文字以上100文字以下
-    // url_list => app5_text TEXT nullで1文字以上1000文字以下
-    ///////////////////////////AI/////////////////////////////
-    const express = require('express');
-    const app = express();
-    const bodyParser = require('body-parser');
-    app.use(bodyParser.json());
-    const cors = require('cors');
-    app.use(cors());
-    const port = 8000;
-    app.listen(port, "0.0.0.0", () => console.log(`App listening!! at http://localhost:${port}`) );
-    const sqlite = require('better-sqlite3');
-    
-    const crypto = require('crypto');
-    
-    const db_for_app5 = new sqlite('app5.db');
+///////////////////////////server_express.js/////////////////////////////
+///////////////////////////server_express.js/////////////////////////////
+///////////////////////////server_express.js/////////////////////////////
+
+///////////////////////////AI/////////////////////////////
+// 以下のコードを以下のルールで書き換えて
+// pop_up_url => app5
+// app5_title => app5_title TEXT not nullで1文字以上100文字以下
+// url_list => app5_text TEXT nullで1文字以上1000文字以下
+///////////////////////////AI/////////////////////////////
+const express = require('express');
+const app = express();
+const bodyParser = require('body-parser');
+app.use(bodyParser.json());
+const cors = require('cors');
+app.use(cors());
+const port = 8000;
+app.listen(port, "0.0.0.0", () => console.log(`App listening!! at http://localhost:${port}`) );
+const sqlite = require('better-sqlite3');
+
+const crypto = require('crypto');
+
+const db_for_app5 = new sqlite('app5.db');
     
 // read_all (POST) /app5/surveys_and_responses/read_all params: uid
  //  => 3種類のデータを取得する。

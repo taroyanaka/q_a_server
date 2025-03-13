@@ -12,56 +12,6 @@ const crypto = require('crypto');
 // データベースの初期化
 const db_for_app7 = new sqlite('app7.db');
 
-// 全てのプロジェクトとそれに紐づくpacksを取得するエンドポイント。packのみも取得している。
-// app.get('/', (req, res) => {
-// try {
-//     // projectsだけを取得する
-//     const projects = db_for_app7.prepare('SELECT * FROM projects').all();
-//     // packsだけを取得する
-//     let packs = db_for_app7.prepare('SELECT * FROM packs').all();
-//     // packsのそれぞれのstageに対してlinksを取得して、packsに追加する
-//     // 全てのlinksを取得
-//     const links = db_for_app7.prepare('SELECT * FROM links').all();
-//     packs = packs.map(pack => {
-//         const packLinks = links.filter(link => link.pack_id === pack.id);
-//         // console.log(packLinks);
-//         return {
-//             ...pack,
-//             plan: {
-//                 ...pack.plan,
-//                 links: packLinks.filter(link => link.stage === 'plan')
-//             },
-//             do: {
-//                 ...pack.do,
-//                 links: packLinks.filter(link => link.stage === 'do')
-//             },
-//             check: {
-//                 ...pack.check,
-//                 links: packLinks.filter(link => link.stage === 'check')
-//             },
-//             act: {
-//                 ...pack.act,
-//                 links: packLinks.filter(link => link.stage === 'act')
-//             }
-//         };
-//     });
-//     // projectsにpacksを追加する
-//     const projects_and_packs = projects.map(project => {
-//         const projectPacks = packs.filter(pack => pack.project_id === project.id);
-//         return {
-//             ...project,
-//             packs: projectPacks
-//         };
-//     });
-//     if (projects.length > 0) {
-//         res.json({projects: projects, packs: packs, projects_and_packs: projects_and_packs});
-//     }
-// } catch (error) {
-//     console.error('Error fetching projects:', error);
-//     res.status(500).json({ message: 'Internal server error' });
-// }
-// });
-
 app.post('/app7/', (req, res) => {
     try {
         // req.bodyからuidを取得
@@ -128,7 +78,6 @@ app.post('/app7/', (req, res) => {
         res.status(500).json({ message: 'Internal server error' });
     }
 });
-
 app.post('/app7/init_db', (req, res) => {
 try {
     const init_db = () => {
