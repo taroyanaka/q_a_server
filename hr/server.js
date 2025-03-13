@@ -15,14 +15,14 @@ app.listen(port, () => {
 
 // テーブル作成
 db.exec(`
-  CREATE TABLE profiles (
+  CREATE TABLE IF NOT EXISTS profiles (
     id INTEGER PRIMARY KEY,
     name TEXT,
     bio TEXT,
     group_id INTEGER,
     status TEXT
   );
-  CREATE TABLE groups (
+  CREATE TABLE IF NOT EXISTS groups (
     id INTEGER PRIMARY KEY,
     name TEXT,
     address TEXT,
@@ -83,11 +83,16 @@ app.post('/profiles', (req, res) => {
   res.json({ id: result.lastInsertRowid });
 });
 
-app.post('/profiles/:id', (req, res) => {
-  const { id } = req.params;
-  const { name, bio, group_id, status } = req.body;
+app.post('/profiles_update', (req, res) => {
+    console.log("profiles_update");
+  const { id, name, bio, group_id, status } = req.body;
+  console.log({ name, bio, group_id, status }); // 修正
   db.prepare('UPDATE profiles SET name = ?, bio = ?, group_id = ?, status = ? WHERE id = ?').run(name, bio, group_id, status, id);
-  res.json({ message: 'Profile updated' });
+//   res.json({ message: 'Profile updated' });
+});
+
+app.post('/test', (req, res) => {
+  console.log("test");
 });
 
 app.post('/profiles/delete/:id', (req, res) => {
@@ -119,4 +124,3 @@ app.post('/groups/delete/:id', (req, res) => {
   db.prepare('DELETE FROM groups WHERE id = ?').run(id);
   res.json({ message: 'Group deleted' });
 });
-
