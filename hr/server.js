@@ -1,17 +1,22 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const Database = require('better-sqlite3');
-const cors = require('cors'); // 追加
+const cors = require('cors');
+const dotenv = require('dotenv'); // dotenvのインポート
+
+dotenv.config(); // 環境変数を読み込むために追加
+
 const app = express();
 const port = 3000;
 
-app.use(cors()); // 追加
+app.use(cors());
 app.use(bodyParser.json());
 
 const db = new Database('./hr.db');
 app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
 });
+
 
 // テーブル作成
 db.exec(`
@@ -88,7 +93,7 @@ app.post('/profiles_update', (req, res) => {
   const { id, name, bio, group_id, status } = req.body;
   console.log({ name, bio, group_id, status }); // 修正
   db.prepare('UPDATE profiles SET name = ?, bio = ?, group_id = ?, status = ? WHERE id = ?').run(name, bio, group_id, status, id);
-//   res.json({ message: 'Profile updated' });
+  res.json({ message: 'Profile updated' });
 });
 
 app.post('/test', (req, res) => {
@@ -107,15 +112,32 @@ app.get('/groups', (req, res) => {
 });
 
 app.post('/groups', (req, res) => {
-  const { name, address, hours, subscribe, subscribe_from } = req.body;
-  const result = db.prepare('INSERT INTO groups (name, address, hours, subscribe, subscribe_from) VALUES (?, ?, ?, ?, ?)').run(name, address, hours, subscribe, JSON.stringify(subscribe_from));
+  const { name, address, hours, subscribe, subscribe_from, password } = req.body;
+
+  // パスワードの検証
+  if (!password || password !== process.env.GROUP_ADD_PASSWORD) {
+    console.log('Invalid password');
+    return res.status(403).json({ message: 'Invalid password' });
+  }
+
+  console.log('Invalid password2');
+  // subscribeを0または1に変換
+  const subscribeValue = subscribe ? 1 : 0;
+  console.log('Invalid password3');
+
+  const result = db.prepare('INSERT INTO groups (name, address, hours, subscribe, subscribe_from) VALUES (?, ?, ?, ?, ?)').run(name, address, hours, subscribeValue, JSON.stringify(subscribe_from));
+  console.log('Invalid password4');
   res.json({ id: result.lastInsertRowid });
 });
 
 app.post('/groups/:id', (req, res) => {
   const { id } = req.params;
   const { name, address, hours, subscribe, subscribe_from } = req.body;
-  db.prepare('UPDATE groups SET name = ?, address = ?, hours = ?, subscribe = ?, subscribe_from = ? WHERE id = ?').run(name, address, hours, subscribe, JSON.stringify(subscribe_from), id);
+
+  // subscribeを0または1に変換
+  const subscribeValue = subscribe ? 1 : 0;
+
+  db.prepare('UPDATE groups SET name = ?, address = ?, hours = ?, subscribe = ?, subscribe_from = ? WHERE id = ?').run(name, address, hours, subscribeValue, JSON.stringify(subscribe_from), id);
   res.json({ message: 'Group updated' });
 });
 
