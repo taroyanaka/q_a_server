@@ -1,3 +1,7 @@
+// ./.env に GROUP_ADD_PASSWORD=xxxxx と記述し、
+// 本番環境でも同様に.envファイルを作成し、
+// 環境変数でグループ追加のパスワード必須とする
+
 const express = require('express');
 const bodyParser = require('body-parser');
 const Database = require('better-sqlite3');
