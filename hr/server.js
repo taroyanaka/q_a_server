@@ -1,4 +1,10 @@
-// ./.env に GROUP_ADD_PASSWORD=xxxxx と記述し、
+// この後やること以下の関数のエンドポイントへの追加実装
+// each_make_groups_passwords
+// make_group_password
+// check_group_password
+
+
+// ./.env に GROUP_ADD_PASSWORD=xxxxx と記述
 // 本番環境でも同様に.envファイルを作成し、
 // 環境変数でグループ追加のパスワード必須とする
 
@@ -22,55 +28,87 @@ app.listen(port, () => {
 });
 
 
-// テーブル作成
-db.exec(`
-  CREATE TABLE IF NOT EXISTS profiles (
-    id INTEGER PRIMARY KEY,
-    name TEXT,
-    bio TEXT,
-    group_id INTEGER,
-    status TEXT
-  );
-  CREATE TABLE IF NOT EXISTS groups (
-    id INTEGER PRIMARY KEY,
-    name TEXT,
-    address TEXT,
-    hours TEXT,
-    subscribe INTEGER,
-    subscribe_from TEXT
-  );
-`);
+function each_make_groups_passwords() {
+    const groups = db.prepare('SELECT * FROM groups').all();
+    // groups_passwordsというテーブルを作り、そこにgroup_idとpasswordを入れる
+    db.exec('DELETE FROM groups_passwords');
+    db.exec('CREATE TABLE IF NOT EXISTS groups_passwords (group_id INTEGER PRIMARY KEY, password TEXT)');
+    const insertGroupPassword = db.prepare('INSERT INTO groups_passwords (group_id, password) VALUES (?, ?)');
+    groups.forEach((group) => {
+        insertGroupPassword.run(group.id, "pass"+group.id);
+    });
+}
+// 新規のグループを追加する際にパスワードを設定する関数
+function make_group_password(group_id) {
+    const password = "pass"+group_id;
+    db.prepare('INSERT INTO groups_passwords (group_id, password) VALUES (?, ?)').run(group_id, password);
+}
+// groups_passwordsのidとパスワードをチェックする関数
+function check_group_password(group_id, password) {
+    const group_password = db.prepare('SELECT * FROM groups_passwords WHERE group_id = ?').get(group_id);
+    if (group_password.password === password) {
+        return true;
+    } else {
+        return false;
+    }
+}
 
-// 初期データ挿入
-const insertProfile = db.prepare('INSERT INTO profiles (id, name, bio, group_id, status) VALUES (?, ?, ?, ?, ?)');
-const insertGroup = db.prepare('INSERT INTO groups (id, name, address, hours, subscribe, subscribe_from) VALUES (?, ?, ?, ?, ?, ?)');
-
-let profiles_data = [
-    {"id": 1, "name": "悠斗","bio": "教師,研究者","group": 2,"status": "NG"},
-    {"id": 2, "name": "健太","bio": "アーティスト,音楽家","group": 2,"status": "OK"},
-    {"id": 3, "name": "萌","bio": "エンジニア,デザイナー","group": 3,"status": "OK"},
-    {"id": 4, "name": "莉子","bio": "医者,看護師","group": 2,"status": "OK"},
-    {"id": 5, "name": "彩香","bio": "マーケティング,ライター","group": 1,"status": "NG"},
-    {"id": 6, "name": "大輔","bio": "医者,看護師","group": 3,"status": "OK"},
-    {"id": 7, "name": "涼介","bio": "販売員,カスタマーサポート","group": 3,"status": "NG"},
-    {"id": 8, "name": "玲奈","bio": "教師,研究者","group": 3,"status": "NG"},
-    {"id": 9, "name": "奈々","bio": "マーケティング,ライター","group": 1,"status": "NG"},
-    {"id": 10, "name": "優斗","bio": "医者,看護師","group": 2,"status": "OK"},
-    {"id": 11, "name": "真由","bio": "マーケティング,ライター","group": 2,"status": "OK"},
-    {"id": 12, "name": "蒼","bio": "販売員,カスタマーサポート","group": 2,"status": "NG"},
-    {"id": 13, "name": "紗希","bio": "エンジニア,デザイナー","group": 3,"status": "OK"},
-    {"id": 14, "name": "美咲","bio": "エンジニア,デザイナー","group": 2,"status": "NG"},
-    {"id": 15, "name": "千尋","bio": "マーケティング,ライター","group": 1,"status": "NG"},
-];
-
-let groups_data = [
-    { id: 1, name: 'グループ A', address: '東京都渋谷区', hours: '9:00 - 18:00', subscribe: 0, subscribe_from: JSON.stringify([2, 3]) },
-    { id: 2, name: 'グループ B', address: '東京都新宿区', hours: '10:00 - 19:00', subscribe: 0, subscribe_from: JSON.stringify([1]) },
-    { id: 3, name: 'グループ C', address: '東京都港区', hours: '8:00 - 17:00', subscribe: 0, subscribe_from: JSON.stringify([1]) },
-];
 
 // initialize endpoint
 app.get('/initialize', (req, res) => {
+    // 既存のテーブルを全て削除
+    db.exec('DELETE FROM profiles');
+    db.exec('DELETE FROM groups');
+
+    // テーブル作成
+db.exec(`
+    CREATE TABLE IF NOT EXISTS profiles (
+      id INTEGER PRIMARY KEY,
+      name TEXT,
+      bio TEXT,
+      group_id INTEGER,
+      status TEXT
+    );
+    CREATE TABLE IF NOT EXISTS groups (
+      id INTEGER PRIMARY KEY,
+      name TEXT,
+      address TEXT,
+      hours TEXT,
+      subscribe INTEGER,
+      subscribe_from TEXT
+    );
+  `);
+  
+  // 初期データ挿入
+  const insertProfile = db.prepare('INSERT INTO profiles (id, name, bio, group_id, status) VALUES (?, ?, ?, ?, ?)');
+  const insertGroup = db.prepare('INSERT INTO groups (id, name, address, hours, subscribe, subscribe_from) VALUES (?, ?, ?, ?, ?, ?)');
+  
+  let profiles_data = [
+      {"id": 1, "name": "悠斗","bio": "教師,研究者","group": 2,"status": "NG"},
+      {"id": 2, "name": "健太","bio": "アーティスト,音楽家","group": 2,"status": "OK"},
+      {"id": 3, "name": "萌","bio": "エンジニア,デザイナー","group": 3,"status": "OK"},
+      {"id": 4, "name": "莉子","bio": "医者,看護師","group": 2,"status": "OK"},
+      {"id": 5, "name": "彩香","bio": "マーケティング,ライター","group": 1,"status": "NG"},
+      {"id": 6, "name": "大輔","bio": "医者,看護師","group": 3,"status": "OK"},
+      {"id": 7, "name": "涼介","bio": "販売員,カスタマーサポート","group": 3,"status": "NG"},
+      {"id": 8, "name": "玲奈","bio": "教師,研究者","group": 3,"status": "NG"},
+      {"id": 9, "name": "奈々","bio": "マーケティング,ライター","group": 1,"status": "NG"},
+      {"id": 10, "name": "優斗","bio": "医者,看護師","group": 2,"status": "OK"},
+      {"id": 11, "name": "真由","bio": "マーケティング,ライター","group": 2,"status": "OK"},
+      {"id": 12, "name": "蒼","bio": "販売員,カスタマーサポート","group": 2,"status": "NG"},
+      {"id": 13, "name": "紗希","bio": "エンジニア,デザイナー","group": 3,"status": "OK"},
+      {"id": 14, "name": "美咲","bio": "エンジニア,デザイナー","group": 2,"status": "NG"},
+      {"id": 15, "name": "千尋","bio": "マーケティング,ライター","group": 1,"status": "NG"},
+  ];
+  
+  let groups_data = [
+      { id: 1, name: 'グループ A', address: '東京都渋谷区', hours: '9:00 - 18:00', subscribe: 0, subscribe_from: JSON.stringify([2, 3]) },
+      { id: 2, name: 'グループ B', address: '東京都新宿区', hours: '10:00 - 19:00', subscribe: 0, subscribe_from: JSON.stringify([1]) },
+      { id: 3, name: 'グループ C', address: '東京都港区', hours: '8:00 - 17:00', subscribe: 0, subscribe_from: JSON.stringify([1]) },
+  ];
+  
+  
+    // データを挿入
   profiles_data.forEach((profile) => {
     insertProfile.run(profile.id, profile.name, profile.bio, profile.group, profile.status);
   });
