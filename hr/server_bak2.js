@@ -3,6 +3,7 @@
 // make_group_password
 // check_group_password
 
+
 // ./.env に GROUP_ADD_PASSWORD=xxxxx と記述
 // 本番環境でも同様に.envファイルを作成し、
 // 環境変数でグループ追加のパスワード必須とする
@@ -30,6 +31,8 @@ app.listen(port, () => {
 function each_make_groups_passwords() {
     const groups = db.prepare('SELECT * FROM groups').all();
     // groups_passwordsというテーブルを作り、そこにgroup_idとpasswordを入れる
+    db.exec('DELETE FROM groups_passwords');
+    db.exec('CREATE TABLE IF NOT EXISTS groups_passwords (group_id INTEGER PRIMARY KEY, password TEXT)');
     const insertGroupPassword = db.prepare('INSERT INTO groups_passwords (group_id, password) VALUES (?, ?)');
     groups.forEach((group) => {
         insertGroupPassword.run(group.id, "pass"+group.id);
@@ -56,8 +59,6 @@ app.get('/initialize', (req, res) => {
     // 既存のテーブルを全て削除
     db.exec('DELETE FROM profiles');
     db.exec('DELETE FROM groups');
-    // groups_passwordsというテーブルを作り、そこにgroup_idとpasswordを入れる
-    db.exec('DELETE FROM groups_passwords');
 
     // テーブル作成
 db.exec(`
@@ -75,10 +76,6 @@ db.exec(`
       hours TEXT,
       subscribe INTEGER,
       subscribe_from TEXT
-    );
-    CREATE TABLE IF NOT EXISTS groups_passwords (
-      group_id INTEGER PRIMARY KEY,
-      password TEXT
     );
   `);
   
@@ -110,16 +107,14 @@ db.exec(`
       { id: 3, name: 'グループ C', address: '東京都港区', hours: '8:00 - 17:00', subscribe: 0, subscribe_from: JSON.stringify([1]) },
   ];
   
-// データを挿入
+  
+    // データを挿入
   profiles_data.forEach((profile) => {
     insertProfile.run(profile.id, profile.name, profile.bio, profile.group, profile.status);
   });
   groups_data.forEach((group) => {
     insertGroup.run(group.id, group.name, group.address, group.hours, group.subscribe, group.subscribe_from);
   });
-//   パスワードを設定
-    each_make_groups_passwords();
-
   res.json({ message: 'Database initialized' });
 });
 
@@ -131,11 +126,6 @@ app.get('/profiles', (req, res) => {
 
 app.post('/profiles', (req, res) => {
   const { name, bio, group_id, status } = req.body;
-      // idでcheckしてfalseならエラーメッセージを返す
-      const error = check_group_password(id, req.body.password) ? null : 'Invalid password';
-      if (error) {
-          return res.status(403).json({ message: error });
-      }
   const result = db.prepare('INSERT INTO profiles (name, bio, group_id, status) VALUES (?, ?, ?, ?)').run(name, bio, group_id, status);
   res.json({ id: result.lastInsertRowid });
 });
@@ -144,11 +134,6 @@ app.post('/profiles_update', (req, res) => {
     console.log("profiles_update");
   const { id, name, bio, group_id, status } = req.body;
   console.log({ name, bio, group_id, status }); // 修正
-      // idでcheckしてfalseならエラーメッセージを返す
-      const error = check_group_password(id, req.body.password) ? null : 'Invalid password';
-      if (error) {
-          return res.status(403).json({ message: error });
-      }
   db.prepare('UPDATE profiles SET name = ?, bio = ?, group_id = ?, status = ? WHERE id = ?').run(name, bio, group_id, status, id);
   res.json({ message: 'Profile updated' });
 });
@@ -160,11 +145,6 @@ app.post('/test', (req, res) => {
 app.post('/profiles/delete/:id', (req, res) => {
   const { id } = req.params;
   db.prepare('DELETE FROM profiles WHERE id = ?').run(id);
-    // idでcheckしてfalseならエラーメッセージを返す
-    const error = check_group_password(id, req.body.password) ? null : 'Invalid password';
-    if (error) {
-        return res.status(403).json({ message: error });
-    }
   res.json({ message: 'Profile deleted' });
 });
 
@@ -188,14 +168,8 @@ app.post('/groups', (req, res) => {
   console.log('Invalid password3');
 
   const result = db.prepare('INSERT INTO groups (name, address, hours, subscribe, subscribe_from) VALUES (?, ?, ?, ?, ?)').run(name, address, hours, subscribeValue, JSON.stringify(subscribe_from));
-  make_group_password(result.lastInsertRowid);
-    //   新規のgroupパスワードを取得
-    const new_group_password = db.prepare('SELECT * FROM groups_passwords WHERE group_id = ?').get(result.lastInsertRowid);
-
   console.log('Invalid password4');
-  res.json({ id: result.lastInsertRowid,
-            password: new_group_password.password });
-
+  res.json({ id: result.lastInsertRowid });
 });
 
 app.post('/groups/:id', (req, res) => {
@@ -204,11 +178,6 @@ app.post('/groups/:id', (req, res) => {
 
   // subscribeを0または1に変換
   const subscribeValue = subscribe ? 1 : 0;
-      // idでcheckしてfalseならエラーメッセージを返す
-      const error = check_group_password(id, req.body.password) ? null : 'Invalid password';
-      if (error) {
-          return res.status(403).json({ message: error });
-      }
 
   db.prepare('UPDATE groups SET name = ?, address = ?, hours = ?, subscribe = ?, subscribe_from = ? WHERE id = ?').run(name, address, hours, subscribeValue, JSON.stringify(subscribe_from), id);
   res.json({ message: 'Group updated' });
@@ -216,11 +185,6 @@ app.post('/groups/:id', (req, res) => {
 
 app.post('/groups/delete/:id', (req, res) => {
   const { id } = req.params;
-      // idでcheckしてfalseならエラーメッセージを返す
-      const error = check_group_password(id, req.body.password) ? null : 'Invalid password';
-      if (error) {
-          return res.status(403).json({ message: error });
-      }
   db.prepare('DELETE FROM groups WHERE id = ?').run(id);
   res.json({ message: 'Group deleted' });
 });
