@@ -42,7 +42,10 @@ function make_group_password(group_id) {
 }
 // groups_passwordsのidとパスワードをチェックする関数
 function check_group_password(group_id, password) {
+  console.log("check_group_password");
+  console.log(group_id, password);
     const group_password = db.prepare('SELECT * FROM groups_passwords WHERE group_id = ?').get(group_id);
+    console.log(group_password.password, password);
     if (group_password.password === password) {
         return true;
     } else {
@@ -51,12 +54,13 @@ function check_group_password(group_id, password) {
 }
 
 
+
+
 // initialize endpoint
 app.get('/initialize', (req, res) => {
     // 既存のテーブルを全て削除
     db.exec('DELETE FROM profiles');
     db.exec('DELETE FROM groups');
-    // groups_passwordsというテーブルを作り、そこにgroup_idとpasswordを入れる
     db.exec('DELETE FROM groups_passwords');
 
     // テーブル作成
@@ -131,41 +135,16 @@ app.get('/profiles', (req, res) => {
 
 app.post('/profiles', (req, res) => {
   const { name, bio, group_id, status } = req.body;
-      // idでcheckしてfalseならエラーメッセージを返す
-      const error = check_group_password(id, req.body.password) ? null : 'Invalid password';
-      if (error) {
-          return res.status(403).json({ message: error });
-      }
+  console.log( name, bio, group_id, status, req.body.password );
+  const error = check_group_password(req.body.group_id, req.body.password) ? null : 'Invalid password';
+  if (error) {return res.status(403).json({ message: error }) };
+
   const result = db.prepare('INSERT INTO profiles (name, bio, group_id, status) VALUES (?, ?, ?, ?)').run(name, bio, group_id, status);
   res.json({ id: result.lastInsertRowid });
 });
 
-app.post('/profiles_update', (req, res) => {
-    console.log("profiles_update");
-  const { id, name, bio, group_id, status } = req.body;
-  console.log({ name, bio, group_id, status }); // 修正
-      // idでcheckしてfalseならエラーメッセージを返す
-      const error = check_group_password(id, req.body.password) ? null : 'Invalid password';
-      if (error) {
-          return res.status(403).json({ message: error });
-      }
-  db.prepare('UPDATE profiles SET name = ?, bio = ?, group_id = ?, status = ? WHERE id = ?').run(name, bio, group_id, status, id);
-  res.json({ message: 'Profile updated' });
-});
-
 app.post('/test', (req, res) => {
   console.log("test");
-});
-
-app.post('/profiles/delete/:id', (req, res) => {
-  const { id } = req.params;
-  db.prepare('DELETE FROM profiles WHERE id = ?').run(id);
-    // idでcheckしてfalseならエラーメッセージを返す
-    const error = check_group_password(id, req.body.password) ? null : 'Invalid password';
-    if (error) {
-        return res.status(403).json({ message: error });
-    }
-  res.json({ message: 'Profile deleted' });
 });
 
 app.get('/groups', (req, res) => {
@@ -198,29 +177,49 @@ app.post('/groups', (req, res) => {
 
 });
 
+// update group
 app.post('/groups/:id', (req, res) => {
   const { id } = req.params;
   const { name, address, hours, subscribe, subscribe_from } = req.body;
 
   // subscribeを0または1に変換
   const subscribeValue = subscribe ? 1 : 0;
-      // idでcheckしてfalseならエラーメッセージを返す
-      const error = check_group_password(id, req.body.password) ? null : 'Invalid password';
-      if (error) {
-          return res.status(403).json({ message: error });
-      }
+  const error = check_group_password(req.body.group_id, req.body.password) ? null : 'Invalid password';
+  if (error) {return res.status(403).json({ message: error }) };
 
   db.prepare('UPDATE groups SET name = ?, address = ?, hours = ?, subscribe = ?, subscribe_from = ? WHERE id = ?').run(name, address, hours, subscribeValue, JSON.stringify(subscribe_from), id);
   res.json({ message: 'Group updated' });
 });
 
+app.post('/profiles_update', (req, res) => {
+  console.log("profiles_update");
+  const { id, name, bio, group_id, status } = req.body;
+  console.log({ name, bio, group_id, status }); // 修正
+
+  const error = check_group_password(req.body.group_id, req.body.password) ? null : 'Invalid password';
+  if (error) {return res.status(403).json({ message: error }) };
+
+  db.prepare('UPDATE profiles SET name = ?, bio = ?, group_id = ?, status = ? WHERE id = ?').run(name, bio, group_id, status, id);
+  res.json({ message: 'Profile updated' });
+});
+
+app.post('/profiles/delete', (req, res) => {
+  console.log(req.body.profile_id);
+  console.log(req.body.group_id);
+  console.log(req.body.password);
+  const error = check_group_password(req.body.group_id, req.body.password) ? null : 'Invalid password';
+  if (error) {return res.status(403).json({ message: error }) };
+  db.prepare('DELETE FROM profiles WHERE id = ?').run(req.body.profile_id);
+  res.json({
+    status: 'OK',
+     message: 'Profile deleted' });
+});
+
 app.post('/groups/delete/:id', (req, res) => {
   const { id } = req.params;
-      // idでcheckしてfalseならエラーメッセージを返す
-      const error = check_group_password(id, req.body.password) ? null : 'Invalid password';
-      if (error) {
-          return res.status(403).json({ message: error });
-      }
+  const error = check_group_password(req.body.group_id, req.body.password) ? null : 'Invalid password';
+  if (error) {return res.status(403).json({ message: error }) };
+
   db.prepare('DELETE FROM groups WHERE id = ?').run(id);
   res.json({ message: 'Group deleted' });
 });
