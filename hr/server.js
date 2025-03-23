@@ -15,6 +15,8 @@ const dotenv = require('dotenv'); // dotenvのインポート
 
 dotenv.config(); // 環境変数を読み込むために追加
 
+console.log(process.env.GROUP_ADD_PASSWORD); // 環境変数の値を表示
+
 const app = express();
 const port = 3000;
 
@@ -76,7 +78,6 @@ db.exec(`
       id INTEGER PRIMARY KEY,
       name TEXT,
       address TEXT,
-      hours TEXT,
       subscribe INTEGER,
       subscribe_from TEXT
     );
@@ -88,7 +89,7 @@ db.exec(`
   
   // 初期データ挿入
   const insertProfile = db.prepare('INSERT INTO profiles (id, name, bio, group_id, status) VALUES (?, ?, ?, ?, ?)');
-  const insertGroup = db.prepare('INSERT INTO groups (id, name, address, hours, subscribe, subscribe_from) VALUES (?, ?, ?, ?, ?, ?)');
+  const insertGroup = db.prepare('INSERT INTO groups (id, name, address, subscribe, subscribe_from) VALUES (?, ?, ?, ?, ?)');
   
   let profiles_data = [
       {"id": 1, "name": "悠斗","bio": "教師,研究者","group": 2,"status": "NG"},
@@ -109,9 +110,9 @@ db.exec(`
   ];
   
   let groups_data = [
-      { id: 1, name: 'グループ A', address: '東京都渋谷区', hours: '9:00 - 18:00', subscribe: 0, subscribe_from: JSON.stringify([2, 3]) },
-      { id: 2, name: 'グループ B', address: '東京都新宿区', hours: '10:00 - 19:00', subscribe: 0, subscribe_from: JSON.stringify([1]) },
-      { id: 3, name: 'グループ C', address: '東京都港区', hours: '8:00 - 17:00', subscribe: 0, subscribe_from: JSON.stringify([1]) },
+      { id: 1, name: 'グループ A', address: '東京都渋谷区', subscribe: 0, subscribe_from: JSON.stringify([2, 3]) },
+      { id: 2, name: 'グループ B', address: '東京都新宿区', subscribe: 0, subscribe_from: JSON.stringify([1]) },
+      { id: 3, name: 'グループ C', address: '東京都港区', subscribe: 0, subscribe_from: JSON.stringify([1]) },
   ];
   
 // データを挿入
@@ -119,7 +120,7 @@ db.exec(`
     insertProfile.run(profile.id, profile.name, profile.bio, profile.group, profile.status);
   });
   groups_data.forEach((group) => {
-    insertGroup.run(group.id, group.name, group.address, group.hours, group.subscribe, group.subscribe_from);
+    insertGroup.run(group.id, group.name, group.address, group, group.subscribe, group.subscribe_from);
   });
 //   パスワードを設定
     each_make_groups_passwords();
@@ -153,12 +154,13 @@ app.get('/groups', (req, res) => {
 });
 
 app.post('/groups', (req, res) => {
-  const { name, address, hours, subscribe, subscribe_from, password } = req.body;
+  const { name, address, subscribe, subscribe_from, password } = req.body;
+  console.log(password);
 
   // パスワードの検証
   if (!password || password !== process.env.GROUP_ADD_PASSWORD) {
-    console.log('Invalid password');
-    return res.status(403).json({ message: 'Invalid password' });
+    console.log('group password Invalid password');
+    return res.status(403).json({ message: 'group password Invalid password' });
   }
 
   console.log('Invalid password2');
@@ -166,7 +168,8 @@ app.post('/groups', (req, res) => {
   const subscribeValue = subscribe ? 1 : 0;
   console.log('Invalid password3');
 
-  const result = db.prepare('INSERT INTO groups (name, address, hours, subscribe, subscribe_from) VALUES (?, ?, ?, ?, ?)').run(name, address, hours, subscribeValue, JSON.stringify(subscribe_from));
+  const result = db.prepare('INSERT INTO groups (name, address, subscribe, subscribe_from) VALUES (?, ?, ?, ?)').run(name, address, subscribeValue, JSON.stringify(subscribe_from));
+
   make_group_password(result.lastInsertRowid);
     //   新規のgroupパスワードを取得
     const new_group_password = db.prepare('SELECT * FROM groups_passwords WHERE group_id = ?').get(result.lastInsertRowid);
@@ -180,27 +183,18 @@ app.post('/groups', (req, res) => {
 // update group
 app.post('/groups/:id', (req, res) => {
   const { id } = req.params;
-  const { name, address, hours, subscribe, subscribe_from } = req.body;
+  const { name, address, subscribe, subscribe_from } = req.body;
 
   // subscribeを0または1に変換
   const subscribeValue = subscribe ? 1 : 0;
   const error = check_group_password(req.body.group_id, req.body.password) ? null : 'Invalid password';
   if (error) {return res.status(403).json({ message: error }) };
 
-  db.prepare('UPDATE groups SET name = ?, address = ?, hours = ?, subscribe = ?, subscribe_from = ? WHERE id = ?').run(name, address, hours, subscribeValue, JSON.stringify(subscribe_from), id);
+  db.prepare(
+    'UPDATE groups SET name = ?, address = ?, subscribe = ?, subscribe_from = ? WHERE id = ?')
+    .run(name, address, subscribeValue, JSON.stringify(subscribe_from), id);
+
   res.json({ message: 'Group updated' });
-});
-
-app.post('/profiles_update', (req, res) => {
-  console.log("profiles_update");
-  const { id, name, bio, group_id, status } = req.body;
-  console.log({ name, bio, group_id, status }); // 修正
-
-  const error = check_group_password(req.body.group_id, req.body.password) ? null : 'Invalid password';
-  if (error) {return res.status(403).json({ message: error }) };
-
-  db.prepare('UPDATE profiles SET name = ?, bio = ?, group_id = ?, status = ? WHERE id = ?').run(name, bio, group_id, status, id);
-  res.json({ message: 'Profile updated' });
 });
 
 app.post('/profiles/delete', (req, res) => {
@@ -223,3 +217,5 @@ app.post('/groups/delete/:id', (req, res) => {
   db.prepare('DELETE FROM groups WHERE id = ?').run(id);
   res.json({ message: 'Group deleted' });
 });
+
+// update_profileは削除(不要)
