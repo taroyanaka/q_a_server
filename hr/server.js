@@ -1,8 +1,3 @@
-// この後やること以下の関数のエンドポイントへの追加実装
-// each_make_groups_passwords
-// make_group_password
-// check_group_password
-
 // ./.env に GROUP_ADD_PASSWORD=xxxxx と記述
 // 本番環境でも同様に.envファイルを作成し、
 // 環境変数でグループ追加のパスワード必須とする
@@ -14,8 +9,6 @@ const cors = require('cors');
 const dotenv = require('dotenv'); // dotenvのインポート
 
 dotenv.config(); // 環境変数を読み込むために追加
-
-console.log(process.env.GROUP_ADD_PASSWORD); // 環境変数の値を表示
 
 const app = express();
 const port = 3000;
