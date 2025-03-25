@@ -3,10 +3,12 @@
 // 環境変数でグループ追加のパスワード必須とする
 
 const express = require('express');
+const nodemailer = require('nodemailer');
 const bodyParser = require('body-parser');
 const Database = require('better-sqlite3');
 const cors = require('cors');
 const dotenv = require('dotenv'); // dotenvのインポート
+
 
 dotenv.config(); // 環境変数を読み込むために追加
 
@@ -212,3 +214,76 @@ app.post('/groups/delete/:id', (req, res) => {
 });
 
 // update_profileは削除(不要)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// メール送信用トランスポート設定（例：Gmail）
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    // .ENVのEMAIL_ADDRESS
+    user: process.env.EMAIL_ADDRESS,          // Gmailのメールアドレス
+    // .ENVのEMAIL_PASSWORD
+    pass: process.env.EMAIL_PASSWORD,         // Gmailのパスワード
+  },
+});
+
+app.post('/sendemail', async (req, res) => {
+  const { to, price } = req.body;
+  // toとpriceが空欄の場合はエラー処理で終了
+  if (!to) {
+    return res.status(400).json({ error: 'Email address is required.' });
+  }
+  if (!price) {
+    return res.status(400).json({ error: 'Price is required.' });
+  }
+
+  // テンプレート文章
+const emailTemplate = (recipient, price) => `
+${price}円のお支払い請求のテストメールです
+
+${recipient}様!
+
+これはHRシェアの請求サービスのメールです。
+${price}円のお支払いをお願いします。
+`;
+const from_data = '"HRシェア" <your_email@gmail.com>';
+const subject_data = 'HRシェアのお支払い請求のテストメールです';
+
+
+  console.log(to);
+  if (!to) {
+    return res.status(400).json({ error: 'Email address is required.' });
+  }
+  console.log(1);
+
+  try {
+    await transporter.sendMail({
+      from: from_data,
+      to,
+      subject: subject_data,
+      text: emailTemplate(to, price),
+    });
+    console.log(2);
+
+    res.json({ success: true, message: `Email sent to ${to}` });
+    console.log(3);
+  } catch (error) {
+    console.log(4);
+    console.error(error);
+    res.status(500).json({ success: false, error: 'Failed to send email.' });
+  }
+});
+
