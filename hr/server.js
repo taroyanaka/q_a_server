@@ -183,7 +183,8 @@ app.post('/test', (req, res) => {
 });
 
 app.get('/groups', (req, res) => {
-  const groups = db.prepare('SELECT * FROM groups').all();
+  // email以外のカラムを表示
+  const groups = db.prepare('SELECT id, name, detail, subscribe, subscribe_from FROM groups').all();
   res.json(groups);
 });
 
@@ -367,10 +368,11 @@ try {
   });
 });
 
-// 全部のリクエストの取得
+// 全部のリクエストの取得 email以外のカラムを表示
 app.get('/all_requests', (req, res) => {
   const requests = db.prepare(`
-    SELECT * FROM requests
+    SELECT requests.*, profiles.name AS profile_name, groups.name AS group_name
+    FROM requests
   `).all();
 
   res.json(requests);
