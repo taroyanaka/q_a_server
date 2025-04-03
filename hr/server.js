@@ -313,8 +313,8 @@ app.post('/request_profiles', async (req, res) => {
   const profile_group_name = profile_group.name;
   const profile_group_id = profile.group_id;
   const profile_group_email = profile_group.email;
-  const profile_group_password = db.prepare('SELECT * FROM groups_passwords WHERE group_id = ?').get(profile_group_id);
-  const profile_group_password_value = profile_group_password.password;
+  // const profile_group_password = db.prepare('SELECT * FROM groups_passwords WHERE group_id = ?').get(profile_group_id);
+  // const profile_group_password_value = profile_group_password.password;
   // メール送信の処理
   const emailTemplate = (recipient, profile_name, group_name) => `
 ${profile_name}さんからのリクエストです
@@ -326,10 +326,6 @@ ${group_name}から${profile_name}さんがリクエストを送信しました�
 このリクエストを確認するには、以下の情報を使用してください：
 グループ名: ${group_name}
 プロフィール名: ${profile_name}
-
-リクエストを承認または拒否するには、以下のリンクをクリックしてください：
-[承認する](http://example.com/approve?group_id=${profile_group_id}&password=${profile_group_password_value})
-[拒否する](http://example.com/reject?group_id=${profile_group_id}&password=${profile_group_password_value})
 
 よろしくお願いいたします。
 HRシェア`;
