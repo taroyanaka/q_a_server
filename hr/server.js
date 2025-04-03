@@ -27,6 +27,20 @@ app.listen(port, () => {
 });
 
 
+// メール送信の処理
+// メール送信用トランスポート設定（例：Gmail）
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    // .ENVのEMAIL_ADDRESS
+    user: process.env.EMAIL_ADDRESS,          // Gmailのメールアドレス
+    // .ENVのEMAIL_PASSWORD
+    pass: process.env.EMAIL_PASSWORD,         // Gmailのパスワード
+  },
+});
+
+
+
 function each_make_groups_passwords() {
     const groups = db.prepare('SELECT * FROM groups').all();
     // groups_passwordsというテーブルを作り、そこにgroup_idとpasswordを入れる
@@ -262,7 +276,7 @@ console.log(req.body.group_id);
 //   password: password
 // });
 
-app.post('/request_profiles', (req, res) => {
+app.post('/request_profiles', async (req, res) => {
   const { profile_id, group_id, password } = req.body;
   console.log("request_profiles");
 
@@ -288,6 +302,62 @@ app.post('/request_profiles', (req, res) => {
     INSERT INTO requests (group_id, profile_id, group_id_from, created_at) 
     VALUES (?, ?, ?, datetime('now'))
   `).run(group_id, profile_id, req.body.group_id_from);
+
+// プロフィールの所属するグループにメールを送信
+  const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id);
+  const profile = db.prepare('SELECT * FROM profiles WHERE id = ?').get(profile_id);
+  const email = group.email;
+  const profile_name = profile.name;
+  const profile_group = db.prepare('SELECT * FROM groups WHERE id = ?').get(profile.group_id);
+  const profile_group_name = profile_group.name;
+  const profile_group_id = profile.group_id;
+  const profile_group_email = profile_group.email;
+  const profile_group_password = db.prepare('SELECT * FROM groups_passwords WHERE group_id = ?').get(profile_group_id);
+  const profile_group_password_value = profile_group_password.password;
+  // メール送信の処理
+  const emailTemplate = (recipient, profile_name, group_name) => `
+${profile_name}さんからのリクエストです
+${recipient}様!
+
+これはHRシェアのリクエスト通知メールです。
+${group_name}から${profile_name}さんがリクエストを送信しました。
+
+このリクエストを確認するには、以下の情報を使用してください：
+グループ名: ${group_name}
+プロフィール名: ${profile_name}
+
+リクエストを承認または拒否するには、以下のリンクをクリックしてください：
+[承認する](http://example.com/approve?group_id=${profile_group_id}&password=${profile_group_password_value})
+[拒否する](http://example.com/reject?group_id=${profile_group_id}&password=${profile_group_password_value})
+
+よろしくお願いいたします。
+HRシェア`;
+const to = group.email;
+console.log(to);
+if (!to) {
+  return res.status(400).json({ error: 'Email address is required.' });
+}
+console.log(1);
+
+try {
+  await transporter.sendMail({
+    from: from_data,
+    to,
+    subject: subject_data,
+    text: emailTemplate(to, price),
+  });
+  console.log(2);
+
+  res.json({ success: true, message: `Email sent to ${to}` });
+  console.log(3);
+} catch (error) {
+  console.log(4);
+  console.error(error);
+  res.status(500).json({ success: false, error: 'Failed to send email.' });
+}
+
+  // メール送信の処理
+  console.log("メール送信の処理完了");
 
   res.json({
     status: 'OK',
@@ -332,16 +402,6 @@ app.get('/all_requests', (req, res) => {
 
 
 
-// メール送信用トランスポート設定（例：Gmail）
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    // .ENVのEMAIL_ADDRESS
-    user: process.env.EMAIL_ADDRESS,          // Gmailのメールアドレス
-    // .ENVのEMAIL_PASSWORD
-    pass: process.env.EMAIL_PASSWORD,         // Gmailのパスワード
-  },
-});
 
 app.post('/sendemail', async (req, res) => {
   const { to, price } = req.body;
