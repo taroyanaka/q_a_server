@@ -1,3 +1,5 @@
+const REQUEST_TIME_LIMIT_SEC = 30; // リクエストの時間制限（秒）
+
 // ./.env に GROUP_ADD_PASSWORD=xxxxx と記述
 // 本番環境でも同様に.envファイルを作成し、
 // 環境変数でグループ追加のパスワード必須とする
@@ -59,6 +61,11 @@ app.get('/initialize', (req, res) => {
     db.exec('DELETE FROM groups');
     db.exec('DELETE FROM groups_passwords');
 
+// リクエストテーブルを追加
+// リクエスト元のグループ、リクエスト先のプロフィール、リクエスト先のプロフィールのグループ、リクエスト日時
+  db.exec(`DROP TABLE IF EXISTS requests`);
+
+
     // テーブル作成
 db.exec(`
     CREATE TABLE IF NOT EXISTS profiles (
@@ -80,7 +87,15 @@ db.exec(`
       group_id INTEGER PRIMARY KEY,
       password TEXT
     );
+    CREATE TABLE IF NOT EXISTS requests (
+      id INTEGER PRIMARY KEY,
+      group_id INTEGER,
+      profile_id INTEGER,
+      group_id_from INTEGER,
+      created_at TEXT
+    );
   `);
+
   
   // 初期データ挿入
   const insertProfile = db.prepare('INSERT INTO profiles (id, name, bio, group_id, status) VALUES (?, ?, ?, ?, ?)');
@@ -241,45 +256,79 @@ console.log(req.body.group_id);
   res.json({ message: 'Group updated' });
 });
 
+// const response = await fetch('http://localhost:3000/request_profiles', { 
+//   profile_id: profile_id,
+//   group_id: group_id,
+//   password: password
+// });
 
-// toggle_subscribe
-app.post('/toggle', (req, res) => {
-  console.log('toggle');
-  console.log(100);
-  // サブスクライドされる対象のgroupのid
-  const { group_id } = req.body;
-  // サブスクライドするgroupのid
-  const { subscribe_group_id } = req.body;
-  console.log("group_id, subscribe_group_id");
-  console.log(group_id, subscribe_group_id);
-  console.log(2);
-  // サブスクライドするgroupの情報を取得
-  const subscribe_group = db.prepare('SELECT * FROM groups WHERE id = ?').get(subscribe_group_id);
-  console.log(3);
-  console.log(subscribe_group);
-  // サブスクライドするgroupの情報を取得
-  const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id);
-  console.log(4);
-  // サブスクライドするgroupのpasswordチェック
-  const error = check_group_password(subscribe_group_id, req.body.password) ? null : 'Invalid password';
-  if (error) {return res.status(403).json({ message: error }) };
-  console.log(5);
-  // サブスクライドされるgroupの情報を更新
-  const new_subscribe_from = JSON.parse(subscribe_group.subscribe_from);
-  console.log(6);
-  new_subscribe_from.push(group_id);
-  console.log(7);
-  db.prepare('UPDATE groups SET subscribe_from = ? WHERE id = ?')
-    .run(JSON.stringify(new_subscribe_from), group_id);
-  // サブスクライドするgroupの情報を更新
-  console.log(8);
-  const new_subscribe = group.subscribe ? 0 : 1;
-  console.log(9);
-  db.prepare('UPDATE groups SET subscribe = ? WHERE id = ?')
-    .run(new_subscribe, subscribe_group_id);
-  console.log(0);
-  res.json({ message: 'Group updated' });
+app.post('/request_profiles', (req, res) => {
+  const { profile_id, group_id, password } = req.body;
+  console.log("request_profiles");
+
+  // パスワードの検証
+  const error = check_group_password(group_id, password) ? null : 'Invalid password';
+  if (error) {
+    return res.status(403).json({ message: error });
+  }
+
+  // requestsテーブルにリクエストを追加(n秒以内の同じリクエストはエラー)
+  // n秒の制限は定数REQUEST_TIME_LIMIT_SECで定義
+  const existingRequest = db.prepare(`
+    SELECT * FROM requests 
+    WHERE group_id = ? AND profile_id = ? 
+    AND created_at > datetime('now', ? || ' seconds')
+  `).get(group_id, profile_id, -REQUEST_TIME_LIMIT_SEC);
+
+  if (existingRequest) {
+    return res.status(403).json({ message: 'Request already made within the time limit' });
+  }
+
+  db.prepare(`
+    INSERT INTO requests (group_id, profile_id, group_id_from, created_at) 
+    VALUES (?, ?, ?, datetime('now'))
+  `).run(group_id, profile_id, req.body.group_id_from);
+
+  res.json({
+    status: 'OK',
+     message: 'Request sent'
+  });
 });
+
+// 全部のリクエストの取得
+app.get('/all_requests', (req, res) => {
+  const requests = db.prepare(`
+    SELECT * FROM requests
+  `).all();
+
+  res.json(requests);
+}
+);
+
+
+
+
+
+
+// サブスクライブ機能は削除
+// toggle_subscribe
+// app.post('/toggle', (req, res) => {
+//   console.log('toggle');
+//   const { group_id } = req.body;
+//   const { subscribe_group_id } = req.body;
+//   const subscribe_group = db.prepare('SELECT * FROM groups WHERE id = ?').get(subscribe_group_id);
+//   const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id);
+//   const error = check_group_password(subscribe_group_id, req.body.password) ? null : 'Invalid password';
+//   if (error) {return res.status(403).json({ message: error }) };
+//   const new_subscribe_from = JSON.parse(subscribe_group.subscribe_from);
+//   new_subscribe_from.push(group_id);
+//   db.prepare('UPDATE groups SET subscribe_from = ? WHERE id = ?')
+//     .run(JSON.stringify(new_subscribe_from), group_id);
+//   const new_subscribe = group.subscribe ? 0 : 1;
+//   db.prepare('UPDATE groups SET subscribe = ? WHERE id = ?')
+//     .run(new_subscribe, subscribe_group_id);
+//   res.json({ message: 'Group updated' });
+// });
 
 
 
