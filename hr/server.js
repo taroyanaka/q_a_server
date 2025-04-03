@@ -339,6 +339,8 @@ if (!to) {
 }
 console.log(1);
 
+const from_data = '"HRシェア" <your_email@gmail.com>';
+const subject_data = 'HRシェアのお支払い請求のテストメールです';
 try {
   await transporter.sendMail({
     from: from_data,
