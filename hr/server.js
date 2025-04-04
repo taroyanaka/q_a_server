@@ -4,6 +4,7 @@ const REQUEST_TIME_LIMIT_SEC = 30; // リクエストの時間制限（秒）
 // 本番環境でも同様に.envファイルを作成し、
 // 環境変数でグループ追加のパスワード必須とする
 
+
 const express = require('express');
 const nodemailer = require('nodemailer');
 const bodyParser = require('body-parser');
@@ -11,8 +12,11 @@ const Database = require('better-sqlite3');
 const cors = require('cors');
 const dotenv = require('dotenv'); // dotenvのインポート
 
-
 dotenv.config(); // 環境変数を読み込むために追加
+const price = process.env.PRICE;
+console.log('priceは');
+console.log(price);
+
 
 const app = express();
 const port = 3000;
@@ -26,7 +30,6 @@ app.listen(port, () => {
     console.log(`foo`);
 });
 
-
 // メール送信の処理
 // メール送信用トランスポート設定（例：Gmail）
 const transporter = nodemailer.createTransport({
@@ -38,8 +41,6 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASSWORD,         // Gmailのパスワード
   },
 });
-
-
 
 function each_make_groups_passwords() {
     const groups = db.prepare('SELECT * FROM groups').all();
@@ -67,17 +68,17 @@ function check_group_password(group_id, password) {
     }
 }
 
-
 // initialize endpoint
 app.get('/initialize', (req, res) => {
     // 既存のテーブルを全て削除
-    db.exec('DELETE FROM profiles');
-    db.exec('DELETE FROM groups');
-    db.exec('DELETE FROM groups_passwords');
-
-// リクエストテーブルを追加
-// リクエスト元のグループ、リクエスト先のプロフィール、リクエスト先のプロフィールのグループ、リクエスト日時
-  db.exec(`DROP TABLE IF EXISTS requests`);
+  //   db.exec('DELETE FROM profiles');
+  //   db.exec('DELETE FROM groups');
+  //   db.exec('DELETE FROM groups_passwords');
+  // db.exec(`DELETE FROM requests`);
+  db.exec('DROP TABLE IF EXISTS profiles');
+  db.exec('DROP TABLE IF EXISTS groups');
+  db.exec('DROP TABLE IF EXISTS groups_passwords');
+  db.exec('DROP TABLE IF EXISTS requests');
 
 
     // テーブル作成
@@ -116,6 +117,9 @@ db.exec(`
   // const insertGroup = db.prepare('INSERT INTO groups (id, name, detail, subscribe, subscribe_from) VALUES (?, ?, ?, ?, ?)');
   // emailを追加
   const insertGroup = db.prepare('INSERT INTO groups (id, name, detail, email, subscribe, subscribe_from) VALUES (?, ?, ?, ?, ?, ?)');
+
+  // requestsテーブルのサンプルデータを1レコード追加
+  const insertRequest = db.prepare('INSERT INTO requests (group_id, profile_id, group_id_from, created_at) VALUES (?, ?, ?, ?)');
   
   let profiles_data = [
       {"id": 1, "name": "悠斗","bio": "教師,研究者","group": 2,"status": "NG"},
@@ -137,9 +141,14 @@ db.exec(`
 
     // emailを追加
   let groups_data = [
-      { id: 1, name: 'グループ A', detail: '東京都渋谷区', email: 'noreply1@gmail', subscribe: 0, subscribe_from: JSON.stringify([2, 3]) },
-      { id: 2, name: 'グループ B', detail: '東京都新宿区', email: 'noreply2@gmail', subscribe: 0, subscribe_from: JSON.stringify([1]) },
-      { id: 3, name: 'グループ C', detail: '東京都港区', email: 'acabbbccc@gmail', subscribe: 0, subscribe_from: JSON.stringify([1]) },
+      { id: 1, name: 'グループ A', detail: '東京都渋谷区', email: process.env.TO_EMAIL_ADDRESS, subscribe: 0, subscribe_from: JSON.stringify([2, 3]) },
+      // プロセスエンヴのEMAIL_ADDRESSを使う
+      { id: 2, name: 'グループ B', detail: '東京都新宿区', email: process.env.TO_EMAIL_ADDRESS, subscribe: 0, subscribe_from: JSON.stringify([1]) },
+      { id: 3, name: 'グループ C', detail: '東京都港区', email: process.env.TO_EMAIL_ADDRESS, subscribe: 0, subscribe_from: JSON.stringify([1]) },
+  ];
+
+  let requests_data = [
+    { group_id: 1, profile_id: 2, group_id_from: 3, created_at: '2023-10-01T12:00:00Z' },
   ];
   // let groups_data = [
   //     { id: 1, name: 'グループ A', detail: '東京都渋谷区', subscribe: 0, subscribe_from: JSON.stringify([2, 3]) },
@@ -156,6 +165,10 @@ db.exec(`
     insertGroup.run(group.id, group.name, group.detail, group.email, group.subscribe, group.subscribe_from);
     // insertGroup.run(group.id, group.name, group.detail, group, group.subscribe, group.subscribe_from);
   });
+  requests_data.forEach((request) => {
+    insertRequest.run(request.group_id, request.profile_id, request.group_id_from, request.created_at);
+  });
+
 //   パスワードを設定
     each_make_groups_passwords();
 
@@ -219,7 +232,6 @@ app.post('/groups', (req, res) => {
 
 });
 
-
 app.post('/profiles/delete', (req, res) => {
   console.log(req.body.profile_id);
   console.log(req.body.group_id);
@@ -240,7 +252,6 @@ app.post('/groups/delete/:id', (req, res) => {
   db.prepare('DELETE FROM groups WHERE id = ?').run(id);
   res.json({ message: 'Group deleted' });
 });
-
 
 // update_profileは削除(不要)
 app.post('/groups/:id', (req, res) => {
@@ -271,15 +282,9 @@ console.log(req.body.group_id);
   res.json({ message: 'Group updated' });
 });
 
-// const response = await fetch('http://localhost:3000/request_profiles', { 
-//   profile_id: profile_id,
-//   group_id: group_id,
-//   password: password
-// });
-
 app.post('/request_profiles', async (req, res) => {
   const { profile_id, group_id, password } = req.body;
-  console.log("request_profiles");
+  console.log("1 request_profiles API");
 
   // パスワードの検証
   const error = check_group_password(group_id, password) ? null : 'Invalid password';
@@ -287,6 +292,7 @@ app.post('/request_profiles', async (req, res) => {
     return res.status(403).json({ message: error });
   }
 
+  console.log("2 request_profiles API");
   // requestsテーブルにリクエストを追加(n秒以内の同じリクエストはエラー)
   // n秒の制限は定数REQUEST_TIME_LIMIT_SECで定義
   const existingRequest = db.prepare(`
@@ -295,66 +301,102 @@ app.post('/request_profiles', async (req, res) => {
     AND created_at > datetime('now', ? || ' seconds')
   `).get(group_id, profile_id, -REQUEST_TIME_LIMIT_SEC);
 
+  console.log("3 request_profiles API");
   if (existingRequest) {
-    return res.status(403).json({ message: 'Request already made within the time limit' });
+    console.log("3.5 request_profiles API");
+    console.log("リクエスト削除ボタン押す必要ある");
+    return res.status(403).json({ 
+      status: 'NG',
+      message: 'Request already made within the time limit' });
   }
+
+  console.log("4 request_profiles API");
+// ISO 8601形式の日時を取得
+  const currentDateTime = new Date().toISOString();
 
   db.prepare(`
     INSERT INTO requests (group_id, profile_id, group_id_from, created_at) 
-    VALUES (?, ?, ?, datetime('now'))
-  `).run(group_id, profile_id, req.body.group_id_from);
+    VALUES (?, ?, ?, ?)
+  `).run(group_id, profile_id, req.body.group_id_from, currentDateTime);
+  console.log("5 request_profiles API");
+  console.log("リクエストを追加しました");
 
-// プロフィールの所属するグループにメールを送信
-  const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id);
-  const profile = db.prepare('SELECT * FROM profiles WHERE id = ?').get(profile_id);
-  const email = group.email;
-  const profile_name = profile.name;
-  const profile_group = db.prepare('SELECT * FROM groups WHERE id = ?').get(profile.group_id);
-  const profile_group_name = profile_group.name;
-  const profile_group_id = profile.group_id;
-  const profile_group_email = profile_group.email;
-  // const profile_group_password = db.prepare('SELECT * FROM groups_passwords WHERE group_id = ?').get(profile_group_id);
-  // const profile_group_password_value = profile_group_password.password;
-  // メール送信の処理
-  const emailTemplate = (recipient, profile_name, group_name) => `
-${profile_name}さんからのリクエストです
-${recipient}様!
-
-これはHRシェアのリクエスト通知メールです。
-${group_name}から${profile_name}さんがリクエストを送信しました。
-
-このリクエストを確認するには、以下の情報を使用してください：
-グループ名: ${group_name}
-プロフィール名: ${profile_name}
-
-よろしくお願いいたします。
-HRシェア`;
-const to = group.email;
-console.log(to);
-if (!to) {
-  return res.status(400).json({ error: 'Email address is required.' });
-}
-console.log(1);
-
-const from_data = '"HRシェア" <your_email@gmail.com>';
-const subject_data = 'HRシェアのお支払い請求のテストメールです';
+// メール送信シーケンス
 try {
-  await transporter.sendMail({
-    from: from_data,
-    to,
-    subject: subject_data,
-    text: emailTemplate(to, price),
-  });
-  console.log(2);
+  console.log('メール送信シーケンス開始');
+  // 送信先メアド(テスト用)
+  // to = 'acabbbccc@gmail.com';
+  // profile_idから所属するグループを調べて存在するグループのメールアドレスを取得
+  const group_id_from = db.prepare('SELECT * FROM profiles WHERE id = ?').get(profile_id).group_id;
+  const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id_from);
+  const to = group.email;
+  const to_group_name = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id).name;
 
-  res.json({ success: true, message: `Email sent to ${to}` });
-  console.log(3);
-} catch (error) {
-  console.log(4);
-  console.error(error);
-  res.status(500).json({ success: false, error: 'Failed to send email.' });
-}
+  if (!to) {
+    // エラー処理
+    console.log('メール送信シーケンス開始 to設定失敗');
+    // エラースロー
+    throw new Error('to is undefined');
+  }
+    
+  if (!to_group_name) {
+    // エラー処理
+    console.log('メール送信シーケンス開始 to_group_name設定失敗');
+    // エラースロー
+    throw new Error('to_group_name is undefined');
+  }
 
+  if (!price) {
+    // エラー処理
+    console.log('メール送信シーケンス開始 price設定失敗');
+    // エラースロー
+    throw new Error('price is undefined');
+  }
+    
+
+  // テンプレート文章
+const emailTemplate = `
+${price}円のお支払い請求のテストメールです
+
+${to_group_name}様!
+
+これはHRシェアの請求サービスのメールです。
+${price}円のお支払いをお願いします。
+`;
+const from_data = 'テストーーーーHRシェア" <your_email@gmail.com>';
+const subject_data = 'DBからメアド取得のテストーーーーHRシェアのお支払い請求のテストメールです';
+
+
+  console.log(to);
+  if (!to) {
+    console.log('メール送信シーケンス開始 to設定失敗');
+  }
+  if (!price) {
+    console.log('メール送信シーケンス開始 price設定失敗');
+  }
+
+  console.log(1);
+
+  console.log('メール送信シーケンス設定完了');
+    await transporter.sendMail({
+      from: from_data,
+      to,
+      subject: subject_data,
+      text: emailTemplate,
+    });
+    console.log(2);
+
+    console.log('メール送信シーケンス実行前');
+    // res.json({ success: true, message: `Email sent to ${to}` });
+    console.log('メール送信シーケンス実行後');
+    console.log(3);
+  } catch (error) {
+    console.log(4);
+    console.error(error);
+    res.status(500).json({ success: false, error: 'Failed to send email.' });
+  }
+  console.log('メール送信シーケンス完了');
+  console.log("9 request_profiles API");
   // メール送信の処理
   console.log("メール送信の処理完了");
 
@@ -366,18 +408,16 @@ try {
 
 // 全部のリクエストの取得 email以外のカラムを表示
 app.get('/all_requests', (req, res) => {
+  console.log("1 all_requests");
+  // requestsテーブルから全てのリクエストを取得
+  // email以外のカラムを表示
   const requests = db.prepare(`
-    SELECT requests.*, profiles.name AS profile_name, groups.name AS group_name
-    FROM requests
+    SELECT requests.id, requests.group_id, requests.profile_id, requests.group_id_from, requests.created_at FROM requests
   `).all();
-
+  console.log("2 all_requests");
   res.json(requests);
 }
 );
-
-
-
-
 
 
 // サブスクライブ機能は削除
@@ -399,9 +439,6 @@ app.get('/all_requests', (req, res) => {
 //     .run(new_subscribe, subscribe_group_id);
 //   res.json({ message: 'Group updated' });
 // });
-
-
-
 
 app.post('/sendemail', async (req, res) => {
   const { to, price } = req.body;
@@ -449,4 +486,17 @@ const subject_data = 'HRシェアのお支払い請求のテストメールで�
     res.status(500).json({ success: false, error: 'Failed to send email.' });
   }
 });
+
+
+// 全部のリクエストを削除(開発用)
+app.get('/delete_all_requests', (req, res) => {
+  // レコードを全て削除
+  db.exec('DELETE FROM requests');
+  res.json({ 
+    status: 'OK',
+      message: 'All requests deleted' });
+  console.log("All requests deleted");
+}
+);
+
 
