@@ -352,17 +352,31 @@ try {
     // エラースロー
     throw new Error('price is undefined');
   }
-    
+   
+// const rental_ok_endpoint_url = process.env.RENTAL_OK_ENDPOINT_URL;
+// app.get('/rental_ok/', async (req, res) => {
+//   console.log("1rental_ok");
+//   const { profile_id } = req.query;
+//   const { group_id } = req.query;
+// const rental_ok_endpoint_url = process.env.RENTAL_OK_ENDPOINT_URL || 'http://localhost:3000/rental_ok/?profile_id=';
+const rental_ok_endpoint_url = 'http://localhost:3000/rental_ok/?profile_id=';
+// profile_idとgroup_idをURLに追加
+const get_paramas = `${profile_id}&group_id=${group_id}`;
 
-  // テンプレート文章
+// レンタル依頼テンプレート文章
 const emailTemplate = `
-${price}円のお支払い請求のテストメールです
-
 ${to_group_name}様!
 
-これはHRシェアの請求サービスのメールです。
-${price}円のお支払いをお願いします。
+これはHRシェアの人材レンタル依頼のメールです。
+許諾をお願いします。
+
+許可なら
+${rental_ok_endpoint_url+get_paramas}をクリックしてください。
 `;
+
+  // テスト用
+
+
 const from_data = 'テストーーーーHRシェア" <your_email@gmail.com>';
 const subject_data = 'DBからメアド取得のテストーーーーHRシェアのお支払い請求のテストメールです';
 
@@ -405,6 +419,68 @@ const subject_data = 'DBからメアド取得のテストーーーーHRシェア
      message: 'Request sent'
   });
 });
+
+
+// RENTAL_OK_ENDPOINT_URLのエンドポイント
+  // asyncで書く
+app.get('/rental_ok/', async (req, res) => {
+  console.log("1rental_ok");
+  const { profile_id } = req.query;
+  const { group_id } = req.query;
+  console.log("2rental_ok");
+  console.log(profile_id);
+  console.log(group_id);
+
+    // リクエストテーブルから依頼したグループのIDを取得して請求依頼のメールを送る
+  const group_id_from = db.prepare('SELECT * FROM requests WHERE profile_id = ?').get(profile_id).group_id_from;
+  console.log(group_id_from);
+  const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id_from);
+  console.log(group);
+  const to = group.email;
+  console.log(to);
+  const to_group_name = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id).name;
+ 
+  console.log("to");
+  console.log(to);
+    // 請求依頼テンプレート文章
+const emailTemplate = `
+${price}円のお支払い請求のテストメールです
+
+${to_group_name}様!
+
+これはHRシェアの請求サービスのメールです。
+${price}円のお支払いをお願いします。
+`;
+
+// メール送信処理
+try {
+  console.log('メール送信シーケンス開始');
+  const from_data = '"HRシェア" <your_email@gmail.com>';
+  const subject_data = 'HRシェアのお支払い請求のテストメールです';
+
+  await transporter.sendMail({
+    from: from_data,
+    to,
+    subject: subject_data,
+    text: emailTemplate,
+  });
+
+  console.log('メール送信シーケンス完了');
+  res.json({ success: true, message: `Email sent to ${to}` });
+} catch (error) {
+  console.error('メール送信エラー:', error);
+  res.status(500).json({ success: false, error: 'Failed to send email.' });
+}
+// リクエストのテーブルから削除
+  db.prepare('DELETE FROM requests WHERE profile_id = ?').run(profile_id);
+  console.log("リクエスト削除");
+  res.json({
+    status: 'OK',
+     message: 'Request deleted'
+  });
+}
+);
+
 
 // 全部のリクエストの取得 email以外のカラムを表示
 app.get('/all_requests', (req, res) => {
