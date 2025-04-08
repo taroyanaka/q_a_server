@@ -371,7 +371,7 @@ ${to_group_name}様!
 許諾をお願いします。
 
 許可なら
-${rental_ok_endpoint_url+get_paramas}をクリックしてください。
+${rental_ok_endpoint_url+'?profile_id='+get_paramas}をクリックしてください。
 `;
 
   // テスト用
@@ -439,24 +439,36 @@ app.get('/rental_ok/', async (req, res) => {
   const to = group.email;
   console.log(to);
   const to_group_name = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id).name;
+  // profile_idからnameと取得
+  const profile = db.prepare('SELECT * FROM profiles WHERE id = ?').get(profile_id);
+  console.log(profile);
+  const profile_name = profile.name;
+  console.log(profile_name);
+  // group_idからnameを取得
+  const group_name = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id).name;
  
   console.log("to");
   console.log(to);
-    // 請求依頼テンプレート文章
+    // レンタル許可テンプレート文章
 const emailTemplate = `
-${price}円のお支払い請求のテストメールです
-
 ${to_group_name}様!
-
-これはHRシェアの請求サービスのメールです。
-${price}円のお支払いをお願いします。
+これはHRシェアの人材レンタル許可のメールです。
+許可ありがとうございます。
+${group_name}様に${profile_name}様をレンタルします。
+${profile_name}様は${price}円でレンタルします。
+レンタルの許可をお願いします。
+${profile_name}様のレンタル許可をお願いします。
+${group_name}様にレンタルします。
 `;
+
+
+  // テスト用
 
 // メール送信処理
 try {
   console.log('メール送信シーケンス開始');
   const from_data = '"HRシェア" <your_email@gmail.com>';
-  const subject_data = 'HRシェアのお支払い請求のテストメールです';
+  const subject_data = 'HRシェアの人材レンタル許可のメールです';
 
   await transporter.sendMail({
     from: from_data,
