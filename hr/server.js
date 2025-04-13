@@ -6,7 +6,7 @@ const REQUEST_TIME_LIMIT_SEC = 30; // リクエストの時間制限（秒）
 
 
 // 開発状況:
-// success=>fail
+// success=>success=>success
 
 // !!groups全てのアドレスがafaになっているから依頼元をacaにする必要がある
 
