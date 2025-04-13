@@ -15,7 +15,6 @@ const REQUEST_TIME_LIMIT_SEC = 30; // リクエストの時間制限（秒）
 
 
 const rental_ok_endpoint_url = 'http://localhost:3000/rental_ok/';
-const rental_ok_notify_endpoint_url = 'http://localhost:3000/rental_ok_notify/';
 
 const express = require('express');
 const nodemailer = require('nodemailer');
@@ -137,7 +136,7 @@ db.exec(`
   
   let profiles_data = [
       {"id": 1, "name": "悠斗","bio": "教師,研究者","group": 2,"status": "NG"},
-      {"id": 2, "name": "健太","bio": "アーティスト,音楽家","group": 2,"status": "OK"},
+      {"id": 2, "name": "健太","bio": "アーティスト,音楽家","group": 1,"status": "OK"},
       {"id": 3, "name": "萌","bio": "エンジニア,デザイナー","group": 3,"status": "OK"},
       {"id": 4, "name": "莉子","bio": "医者,看護師","group": 2,"status": "OK"},
       {"id": 5, "name": "彩香","bio": "マーケティング,ライター","group": 1,"status": "NG"},
@@ -164,11 +163,6 @@ db.exec(`
   let requests_data = [
     { group_id: 1, profile_id: 2, group_id_from: 3, created_at: '2023-10-01T12:00:00Z' },
   ];
-  // let groups_data = [
-  //     { id: 1, name: 'グループ A', detail: '東京都渋谷区', subscribe: 0, subscribe_from: JSON.stringify([2, 3]) },
-  //     { id: 2, name: 'グループ B', detail: '東京都新宿区', subscribe: 0, subscribe_from: JSON.stringify([1]) },
-  //     { id: 3, name: 'グループ C', detail: '東京都港区', subscribe: 0, subscribe_from: JSON.stringify([1]) },
-  // ];
   
 // データを挿入
   profiles_data.forEach((profile) => {
@@ -289,32 +283,6 @@ app.post('/request_profiles', async (req, res) => {
   if (error) {
     return res.status(403).json({ message: error });
   }
-
-  console.log("2 request_profiles API");
-  const existingRequest = db.prepare(`
-    SELECT * FROM requests 
-    WHERE group_id = ? AND profile_id = ? 
-    AND created_at > datetime('now', ? || ' seconds')
-  `).get(group_id, profile_id, -REQUEST_TIME_LIMIT_SEC);
-
-  console.log("3 request_profiles API");
-  if (existingRequest) {
-    console.log("3.5 request_profiles API");
-    console.log("リクエスト削除ボタン押す必要ある");
-    return res.status(403).json({ 
-      status: 'NG',
-      message: 'Request already made within the time limit' });
-  }
-
-  console.log("4 request_profiles API");
-  const currentDateTime = new Date().toISOString();
-
-  db.prepare(`
-    INSERT INTO requests (group_id, profile_id, group_id_from, created_at) 
-    VALUES (?, ?, ?, ?)
-  `).run(group_id, profile_id, req.body.group_id_from, currentDateTime);
-  console.log("5 request_profiles API");
-  console.log("リクエストを追加しました");
 
 
 try {
@@ -470,76 +438,27 @@ try {
 }
 );
 
-
-// rental_ok_notify
-// app.get('/rental_ok_notify/', async (req, res) => {
-//   console.log("1 rental_ok_notify");
-//   const { profile_id } = req.query;
-//   const { group_id } = req.query;
-//   console.log("2 rental_ok_notify");
-//   console.log("profile_id:依頼先のプロフィールのid" );
-//   console.log(profile_id);
-//   const profile_name = db.prepare('SELECT * FROM profiles WHERE id = ?').get(profile_id).name;
-//   console.log("profile_name:依頼先のプロフィールの名前");
-//   console.log(profile_name);
-//   console.log("group_id:依頼元のグループのid");
-//   console.log(group_id);
-//   const from_group_name = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id).name;
-//   console.log("from_group_name:依頼元のグループの名前");
-//   console.log(from_group_name);
-//   const to_group = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id);
-//   console.log("to_group:依頼先のグループの情報");
-//   console.log(to_group);
-//   const to_email = to_group.email;
-//   console.log("to_email:依頼先のグループのメールアドレス");
-//   console.log(to_email);
-//   const to_group_name = to_group.name;
-//   console.log("to_group_name:依頼先のグループの名前");
-//   console.log(to_group_name);
-
-// const emailTemplate = `
-// ${from_group_name}様!
-
-// これはHRシェアの人材レンタル許可通知のメールです。
-// ${to_group_name}様が${profile_name}様をレンタルすることを許可しました。
-
-// レンタル料金: ${price}円
-
-// 詳細については、HRシェアの管理画面をご確認ください。
-
-// よろしくお願いいたします。`;
-// try {
-//   console.log('メール送信シーケンス開始');
-//   const from_data = '"HRシェア" <your_email@gmail.com>';
-//   const subject_data = 'HRシェアの人材レンタル許可通知のメールです';
-
-//   await transporter.sendMail({
-//     from: from_data,
-//     to: to_email,
-//     subject: subject_data,
-//     text: emailTemplate,
-//   });
-
-//   console.log('メール送信シーケンス完了');
-//   res.json({ success: true, message: `Email sent to ${to_email}` });
-//   console.log("メール送信の処理完了");
-// } catch (error) {
-//   console.error('メール送信エラー:', error);
-//   res.status(500).json({ success: false, error: 'Failed to send email.' });
-// }
-// }
-// );
-
+function insert_request(group_id, profile_id, group_id_from) {
+  const existingRequest = db.prepare(`
+    SELECT * FROM requests 
+    WHERE group_id = ? AND profile_id = ? 
+    AND created_at > datetime('now', ? || ' seconds')
+  `).get(group_id, profile_id, -REQUEST_TIME_LIMIT_SEC);
+  if (existingRequest) {
+    
+  }
+  const currentDateTime = new Date().toISOString();
+  db.prepare(`
+    INSERT INTO requests (group_id, profile_id, group_id_from, created_at) 
+    VALUES (?, ?, ?, ?)
+  `).run(group_id, profile_id, group_id_from, currentDateTime);
+}
 
 // 全部のリクエストの取得 email以外のカラムを表示
 app.get('/all_requests', (req, res) => {
-  console.log("1 all_requests");
-  // requestsテーブルから全てのリクエストを取得
-  // email以外のカラムを表示
   const requests = db.prepare(`
     SELECT requests.id, requests.group_id, requests.profile_id, requests.group_id_from, requests.created_at FROM requests
   `).all();
-  console.log("2 all_requests");
   res.json(requests);
 }
 );
