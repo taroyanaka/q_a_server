@@ -5,6 +5,19 @@ const REQUEST_TIME_LIMIT_SEC = 30; // リクエストの時間制限（秒）
 // 環境変数でグループ追加のパスワード必須とする
 
 
+// 開発状況:
+// success=>fail
+
+// !!groups全てのアドレスがafaになっているから依頼元をacaにする必要がある
+
+// サイト=>メールボックス=>メールボックス
+// aca=>afa=>aca
+// リクエスト(依頼元)=>レンタルOK(依頼先)=>レンタルOK通知(依頼元)
+// request_profiles=>rental_ok=>rental_ok_notify
+
+const rental_ok_endpoint_url = 'http://localhost:3000/rental_ok/';
+const rental_ok_notify_endpoint_url = 'http://localhost:3000/rental_ok_notify/';
+
 const express = require('express');
 const nodemailer = require('nodemailer');
 const bodyParser = require('body-parser');
@@ -201,35 +214,22 @@ app.get('/groups', (req, res) => {
   res.json(groups);
 });
 
-app.post('/groups', (req, res) => {
-    // emailを追加
+app.post('/create_groups', (req, res) => {
   const { name, detail, email, subscribe, subscribe_from, password } = req.body;
-  // const { name, detail, subscribe, subscribe_from, password } = req.body;
   console.log(password);
-
-  // パスワードの検証
   if (!password || password !== process.env.GROUP_ADD_PASSWORD) {
     console.log('group password Invalid password');
     return res.status(403).json({ message: 'group password Invalid password' });
   }
-
   console.log('Invalid password2');
-  // subscribeを0または1に変換
   const subscribeValue = subscribe ? 1 : 0;
   console.log('Invalid password3');
-
-    // emailを追加
   const result = db.prepare('INSERT INTO groups (name, detail, email, subscribe, subscribe_from) VALUES (?, ?, ?, ?, ?)').run(name, detail, email, subscribeValue, JSON.stringify(subscribe_from));
-  // const result = db.prepare('INSERT INTO groups (name, detail, subscribe, subscribe_from) VALUES (?, ?, ?, ?)').run(name, detail, subscribeValue, JSON.stringify(subscribe_from));
-
   make_group_password(result.lastInsertRowid);
-    //   新規のgroupパスワードを取得
     const new_group_password = db.prepare('SELECT * FROM groups_passwords WHERE group_id = ?').get(result.lastInsertRowid);
-
   console.log('Invalid password4');
   res.json({ id: result.lastInsertRowid,
             password: new_group_password.password });
-
 });
 
 app.post('/profiles/delete', (req, res) => {
@@ -253,7 +253,6 @@ app.post('/groups/delete/:id', (req, res) => {
   res.json({ message: 'Group deleted' });
 });
 
-// update_profileは削除(不要)
 app.post('/groups/:id', (req, res) => {
   const { id } = req.params;
     // emailを追加
@@ -285,16 +284,12 @@ console.log(req.body.group_id);
 app.post('/request_profiles', async (req, res) => {
   const { profile_id, group_id, password } = req.body;
   console.log("1 request_profiles API");
-
-  // パスワードの検証
   const error = check_group_password(group_id, password) ? null : 'Invalid password';
   if (error) {
     return res.status(403).json({ message: error });
   }
 
   console.log("2 request_profiles API");
-  // requestsテーブルにリクエストを追加(n秒以内の同じリクエストはエラー)
-  // n秒の制限は定数REQUEST_TIME_LIMIT_SECで定義
   const existingRequest = db.prepare(`
     SELECT * FROM requests 
     WHERE group_id = ? AND profile_id = ? 
@@ -311,7 +306,6 @@ app.post('/request_profiles', async (req, res) => {
   }
 
   console.log("4 request_profiles API");
-// ISO 8601形式の日時を取得
   const currentDateTime = new Date().toISOString();
 
   db.prepare(`
@@ -321,49 +315,31 @@ app.post('/request_profiles', async (req, res) => {
   console.log("5 request_profiles API");
   console.log("リクエストを追加しました");
 
-// メール送信シーケンス
+
 try {
   console.log('メール送信シーケンス開始');
-  // 送信先メアド(テスト用)
-  // to = 'acabbbccc@gmail.com';
-  // profile_idから所属するグループを調べて存在するグループのメールアドレスを取得
   const group_id_from = db.prepare('SELECT * FROM profiles WHERE id = ?').get(profile_id).group_id;
   const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id_from);
   const to = group.email;
   const to_group_name = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id).name;
 
   if (!to) {
-    // エラー処理
     console.log('メール送信シーケンス開始 to設定失敗');
-    // エラースロー
     throw new Error('to is undefined');
   }
     
   if (!to_group_name) {
-    // エラー処理
     console.log('メール送信シーケンス開始 to_group_name設定失敗');
-    // エラースロー
     throw new Error('to_group_name is undefined');
   }
 
   if (!price) {
-    // エラー処理
     console.log('メール送信シーケンス開始 price設定失敗');
-    // エラースロー
     throw new Error('price is undefined');
   }
    
-// const rental_ok_endpoint_url = process.env.RENTAL_OK_ENDPOINT_URL;
-// app.get('/rental_ok/', async (req, res) => {
-//   console.log("1rental_ok");
-//   const { profile_id } = req.query;
-//   const { group_id } = req.query;
-// const rental_ok_endpoint_url = process.env.RENTAL_OK_ENDPOINT_URL || 'http://localhost:3000/rental_ok/?profile_id=';
-const rental_ok_endpoint_url = 'http://localhost:3000/rental_ok/?profile_id=';
-// profile_idとgroup_idをURLに追加
-const get_paramas = `${profile_id}&group_id=${group_id}`;
+const get_paramas = `?profile_id=${profile_id}&group_id=${group_id}`;
 
-// レンタル依頼テンプレート文章
 const emailTemplate = `
 ${to_group_name}様!
 
@@ -371,15 +347,11 @@ ${to_group_name}様!
 許諾をお願いします。
 
 許可なら
-${rental_ok_endpoint_url+'?profile_id='+get_paramas}をクリックしてください。
+${rental_ok_endpoint_url+get_paramas}をクリックしてください。
 `;
 
-  // テスト用
-
-
-const from_data = 'テストーーーーHRシェア" <your_email@gmail.com>';
-const subject_data = 'DBからメアド取得のテストーーーーHRシェアのお支払い請求のテストメールです';
-
+  const from_data = 'テストーーーーHRシェア" <your_email@gmail.com>';
+  const subject_data = 'DBからメアド取得のテストーーーーHRシェアのお支払い請求のテストメールです';
 
   console.log(to);
   if (!to) {
@@ -401,7 +373,6 @@ const subject_data = 'DBからメアド取得のテストーーーーHRシェア
     console.log(2);
 
     console.log('メール送信シーケンス実行前');
-    // res.json({ success: true, message: `Email sent to ${to}` });
     console.log('メール送信シーケンス実行後');
     console.log(3);
   } catch (error) {
@@ -411,7 +382,6 @@ const subject_data = 'DBからメアド取得のテストーーーーHRシェア
   }
   console.log('メール送信シーケンス完了');
   console.log("9 request_profiles API");
-  // メール送信の処理
   console.log("メール送信の処理完了");
 
   res.json({
@@ -420,51 +390,62 @@ const subject_data = 'DBからメアド取得のテストーーーーHRシェア
   });
 });
 
-
-// RENTAL_OK_ENDPOINT_URLのエンドポイント
-  // asyncで書く
 app.get('/rental_ok/', async (req, res) => {
   console.log("1rental_ok");
   const { profile_id } = req.query;
   const { group_id } = req.query;
   console.log("2rental_ok");
+  console.log("profile_id:依頼先のプロフィールのid" );
   console.log(profile_id);
+  console.log("group_id:依頼元のグループのid");
   console.log(group_id);
 
     // リクエストテーブルから依頼したグループのIDを取得して請求依頼のメールを送る
-  const group_id_from = db.prepare('SELECT * FROM requests WHERE profile_id = ?').get(profile_id).group_id_from;
-  console.log(group_id_from);
-  const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id_from);
-  console.log(group);
-  const to = group.email;
-  console.log(to);
-  const to_group_name = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id).name;
-  // profile_idからnameと取得
+  // const group_id_to = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id).id;
+  // console.log("group_id_to:依頼先のグループのid");
+  // console.log(group_id_to);
+  const to_group = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id);
+  console.log("to_group:依頼先のグループの情報");
+  console.log(to_group);
+  const to_email = to_group.email;
+  console.log("to_email:依頼先のグループのメールアドレス");
+  console.log(to_email);
+  const to_group_name = to_group.name;
+  console.log("to_group_name:依頼先のグループの名前");
+  console.log(to_group_name);
   const profile = db.prepare('SELECT * FROM profiles WHERE id = ?').get(profile_id);
+  console.log("profile:依頼先のプロフィールの情報");
   console.log(profile);
   const profile_name = profile.name;
+  console.log("profile_name:依頼先のプロフィールの名前");
   console.log(profile_name);
-  // group_idからnameを取得
-  const group_name = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id).name;
- 
-  console.log("to");
-  console.log(to);
+
+  const from_group_name = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id).name;
+  console.log("from_group_name:依頼元のグループの名前");
+  console.log(from_group_name);
+
+  const get_paramas = `?profile_id=${profile_id}&group_id=${group_id}`;
+  console.log("get_paramas:URLのパラメータ");
+  console.log(get_paramas);
+
+
     // レンタル許可テンプレート文章
 const emailTemplate = `
 ${to_group_name}様!
 これはHRシェアの人材レンタル許可のメールです。
 許可ありがとうございます。
-${group_name}様に${profile_name}様をレンタルします。
+${from_group_name}様に${profile_name}様をレンタルします。
 ${profile_name}様は${price}円でレンタルします。
 レンタルの許可をお願いします。
 ${profile_name}様のレンタル許可をお願いします。
-${group_name}様にレンタルします。
+${from_group_name}様にレンタルします。
+
+許可であれば${rental_ok_notify_endpoint_url+get_paramas}をクリックしてください。
+レンタルNGであれば、何もクリックしないでください。
 `;
+console.log("emailTemplate:メールのテンプレート");
+console.log(emailTemplate);
 
-
-  // テスト用
-
-// メール送信処理
 try {
   console.log('メール送信シーケンス開始');
   const from_data = '"HRシェア" <your_email@gmail.com>';
@@ -472,23 +453,94 @@ try {
 
   await transporter.sendMail({
     from: from_data,
-    to,
+    to: to_email,
     subject: subject_data,
     text: emailTemplate,
   });
 
   console.log('メール送信シーケンス完了');
-  res.json({ success: true, message: `Email sent to ${to}` });
+  res.json({ success: true, message: `Email sent to ${to_email}` });
 } catch (error) {
   console.error('メール送信エラー:', error);
   res.status(500).json({ success: false, error: 'Failed to send email.' });
 }
 // リクエストのテーブルから削除
-  db.prepare('DELETE FROM requests WHERE profile_id = ?').run(profile_id);
+  // db.prepare('DELETE FROM requests WHERE profile_id = ?').run(profile_id);
   console.log("リクエスト削除");
   res.json({
     status: 'OK',
      message: 'Request deleted'
+  });
+}
+);
+
+
+// rental_ok_notify
+app.get('/rental_ok_notify/', async (req, res) => {
+  console.log("1 rental_ok_notify");
+  const { profile_id } = req.query;
+  const { group_id } = req.query;
+  console.log("2 rental_ok_notify");
+  console.log("profile_id:依頼先のプロフィールのid" );
+  console.log(profile_id);
+  const profile_name = db.prepare('SELECT * FROM profiles WHERE id = ?').get(profile_id).name;
+  console.log("profile_name:依頼先のプロフィールの名前");
+  console.log(profile_name);
+  console.log("group_id:依頼元のグループのid");
+  console.log(group_id);
+  // from_group_name
+  const from_group_name = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id).name;
+  console.log("from_group_name:依頼元のグループの名前");
+  console.log(from_group_name);
+  const to_group = db.prepare('SELECT * FROM groups WHERE id = ?').get(group_id);
+  console.log("to_group:依頼先のグループの情報");
+  console.log(to_group);
+  const to_email = to_group.email;
+  console.log("to_email:依頼先のグループのメールアドレス");
+  console.log(to_email);
+  const to_group_name = to_group.name;
+  console.log("to_group_name:依頼先のグループの名前");
+  console.log(to_group_name);
+
+  // レンタル許可通知テンプレート文章
+const emailTemplate = `
+${from_group_name}様!
+
+これはHRシェアの人材レンタル許可通知のメールです。
+${to_group_name}様が${profile_name}様をレンタルすることを許可しました。
+
+レンタル料金: ${price}円
+
+詳細については、HRシェアの管理画面をご確認ください。
+
+よろしくお願いいたします。`;
+try {
+  console.log('メール送信シーケンス開始');
+  const from_data = '"HRシェア" <your_email@gmail.com>';
+  const subject_data = 'HRシェアの人材レンタル許可通知のメールです';
+
+  await transporter.sendMail({
+    from: from_data,
+    to: to_email,
+    subject: subject_data,
+    text: emailTemplate,
+  });
+
+  console.log('メール送信シーケンス完了');
+  res.json({ success: true, message: `Email sent to ${to_email}` });
+  console.log("メール送信の処理完了");
+} catch (error) {
+  console.error('メール送信エラー:', error);
+  res.status(500).json({ success: false, error: 'Failed to send email.' });
+}
+
+  // console.log("リクエスト削除");
+  // リクエストのテーブルから削除
+  // db.prepare('DELETE FROM requests WHERE profile_id = ?').run(profile_id);
+  // console.log("リクエスト削除");
+  res.json({
+    status: 'OK',
+      message: 'Request deleted'
   });
 }
 );
