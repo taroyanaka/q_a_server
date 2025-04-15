@@ -14,7 +14,8 @@ const REQUEST_TIME_LIMIT_SEC = 30; // リクエストの時間制限（秒）
 // request_profiles(acaからafaにメール到着)=>rental_ok(afaからacaにメール到着)
 
 
-const rental_ok_endpoint_url = 'http://localhost:3000/rental_ok/';
+
+
 
 const express = require('express');
 const nodemailer = require('nodemailer');
@@ -37,7 +38,7 @@ const port = 3000;
 app.use(cors());
 app.use(bodyParser.json());
 
-const db = new Database('./hr.db');
+const db = new Database('./.data/hr.db');
 app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
     console.log(`foo`);
@@ -199,8 +200,9 @@ app.post('/profiles', (req, res) => {
   res.json({ id: result.lastInsertRowid });
 });
 
-app.post('/test', (req, res) => {
+app.get('/test', (req, res) => {
   console.log("test");
+  res.json({ message: 'Test endpoint' });
 });
 
 app.get('/groups', (req, res) => {
@@ -312,6 +314,7 @@ try {
    
 const get_paramas = `?profile_id=${profile_id}&group_id=${group_id}`;
 
+const rental_ok_endpoint_url = req.protocol + "://" + req.get('host') + '/rental_ok/';
 const emailTemplate = `
 ${group.name}様!
 
