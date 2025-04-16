@@ -1,3 +1,6 @@
+// const IN_DEV = true;
+const IN_DEV = false;
+
 const REQUEST_TIME_LIMIT_SEC = 30; // リクエストの時間制限（秒）
 
 // ./.env に GROUP_ADD_PASSWORD=xxxxx と記述
@@ -84,6 +87,8 @@ function check_group_password(group_id, password) {
 
 // initialize endpoint
 app.get('/initialize', (req, res) => {
+  try {  
+    if(IN_DEV===false){throw new Error('in dev false');  res.status(403).json({ message: error })};
     // 既存のテーブルを全て削除
   //   db.exec('DELETE FROM profiles');
   //   db.exec('DELETE FROM groups');
@@ -182,6 +187,9 @@ db.exec(`
     each_make_groups_passwords();
 
   res.json({ message: 'Database initialized' });
+} catch (error) {
+  console.log("initializeのエラー");
+}
 });
 
 // CRUDエンドポイント
@@ -191,6 +199,9 @@ app.get('/profiles', (req, res) => {
 });
 
 app.post('/profiles', (req, res) => {
+  try {  
+    if(IN_DEV===false){throw new Error('in dev false');  res.status(403).json({ message: error })};
+
   const { name, bio, group_id, status } = req.body;
   console.log( name, bio, group_id, status, req.body.password );
   const error = check_group_password(req.body.group_id, req.body.password) ? null : 'Invalid password';
@@ -198,6 +209,10 @@ app.post('/profiles', (req, res) => {
 
   const result = db.prepare('INSERT INTO profiles (name, bio, group_id, status) VALUES (?, ?, ?, ?)').run(name, bio, group_id, status);
   res.json({ id: result.lastInsertRowid });
+} catch (error) {
+  console.log("initializeのエラー");
+}
+
 });
 
 app.get('/test', (req, res) => {
@@ -212,6 +227,9 @@ app.get('/groups', (req, res) => {
 });
 
 app.post('/create_groups', (req, res) => {
+  try {  
+    if(IN_DEV===false){throw new Error('in dev false');  res.status(403).json({ message: error })};
+
   const { name, detail, email, subscribe, subscribe_from, password } = req.body;
   console.log(password);
   if (!password || password !== process.env.GROUP_ADD_PASSWORD) {
@@ -227,6 +245,9 @@ app.post('/create_groups', (req, res) => {
   console.log('Invalid password4');
   res.json({ id: result.lastInsertRowid,
             password: new_group_password.password });
+  } catch (error) {
+    console.log("initializeのエラー");
+  }        
 });
 
 app.post('/profiles/delete', (req, res) => {
@@ -279,6 +300,9 @@ console.log(req.body.group_id);
 });
 
 app.post('/request_profiles', async (req, res) => {
+  try {  
+    if(IN_DEV===false){throw new Error('in dev false');  res.status(403).json({ message: error })};
+  
   const { profile_id, group_id, password } = req.body;
   console.log("1 request_profiles API");
   const error = check_group_password(group_id, password) ? null : 'Invalid password';
@@ -287,7 +311,6 @@ app.post('/request_profiles', async (req, res) => {
   }
 
 
-try {
   // profile_idからprofile_nameを取得
   const profile_name = db.prepare('SELECT * FROM profiles WHERE id = ?').get(profile_id).name;
 
@@ -346,12 +369,7 @@ ${profile_name}様のレンタル希望が${to_group_name}様から来ました�
     console.log('メール送信シーケンス実行前');
     console.log('メール送信シーケンス実行後');
     console.log(3);
-  } catch (error) {
-    console.log(4);
-    console.error(error);
-    res.status(500).json({ success: false, error: 'Failed to send email.' });
-  }
-  console.log('メール送信シーケンス完了');
+    console.log('メール送信シーケンス完了1');
   console.log("9 request_profiles API");
   console.log("メール送信の処理完了");
 
@@ -359,9 +377,18 @@ ${profile_name}様のレンタル希望が${to_group_name}様から来ました�
     status: 'OK',
      message: 'Request sent'
   });
+} catch (error) {
+  console.log("try catchのエラーでメール送信の処理失敗");
+  console.log(4);
+  console.error(error);
+  res.status(500).json({ success: false, error: 'Failed to send email.' });
+}
+
 });
 
 app.get('/rental_ok/', async (req, res) => {
+  try {
+  if(IN_DEV===false){throw new Error('in dev false');  res.status(403).json({ message: error })};
   console.log("1rental_ok");
   const { profile_id } = req.query;
   const { group_id } = req.query;
@@ -413,7 +440,7 @@ ${from_group_name}様からレンタル許可のメールが届きました。
 console.log("emailTemplate:メールのテンプレート");
 console.log(emailTemplate);
 
-try {
+
   console.log('メール送信シーケンス開始');
   const from_data = '"HRシェア" <your_email@gmail.com>';
   const subject_data = 'HRシェアの人材レンタル許可のメールです';
@@ -425,9 +452,10 @@ try {
     text: emailTemplate,
   });
 
-  console.log('メール送信シーケンス完了');
+  console.log('メール送信シーケンス完了2');
   res.json({ success: true, message: `Email sent to ${to_email}` });
 } catch (error) {
+  console.log("try catchのエラーでメール送信の処理失敗");
   console.error('メール送信エラー:', error);
   res.status(500).json({ success: false, error: 'Failed to send email.' });
 }
@@ -488,6 +516,9 @@ app.get('/all_requests', (req, res) => {
 // });
 
 app.post('/sendemail', async (req, res) => {
+  try {
+    if(IN_DEV===false){throw new Error('in dev false');  res.status(403).json({ message: error })};
+
   const { to, price } = req.body;
   // toとpriceが空欄の場合はエラー処理で終了
   if (!to) {
@@ -516,7 +547,6 @@ const subject_data = 'HRシェアのお支払い請求のテストメールで�
   }
   console.log(1);
 
-  try {
     await transporter.sendMail({
       from: from_data,
       to,
