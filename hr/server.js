@@ -1,5 +1,5 @@
-// const IN_DEV = true;
-const IN_DEV = false;
+const IN_DEV = true;
+// const IN_DEV = false;
 
 const REQUEST_TIME_LIMIT_SEC = 30; // リクエストの時間制限（秒）
 
@@ -72,6 +72,25 @@ function make_group_password(group_id) {
     const password = "pass"+group_id;
     db.prepare('INSERT INTO groups_passwords (group_id, password) VALUES (?, ?)').run(group_id, password);
 }
+
+// 新規のグループを追加する際にパスワードをランダム生成する関数
+function generate_random_password() {
+    const characters = 'abcdefghijklmnopqrstuvwxyz123456789';
+    const symbols = '.-_';
+    let password = '';
+    for (let i = 0; i < 10; i++) {
+        const randomIndex = Math.floor(Math.random() * characters.length);
+        // symbolsを追加
+        if (i === 2) {
+            const randomSymbolIndex = Math.floor(Math.random() * symbols.length);
+            password += symbols.charAt(randomSymbolIndex);
+        }
+        password += characters.charAt(randomIndex);
+    }
+    return password;
+}
+
+
 // groups_passwordsのidとパスワードをチェックする関数
 function check_group_password(group_id, password) {
   console.log("check_group_password");
@@ -226,7 +245,9 @@ app.get('/groups', (req, res) => {
   res.json(groups);
 });
 
-app.post('/create_groups', (req, res) => {
+// app.post('/create_groups', (req, res) => {
+// async/await のpostに
+app.post('/create_groups', async (req, res) => {
   try {  
     if(IN_DEV===false){throw new Error('in dev false');  res.status(403).json({ message: error })};
 
@@ -240,10 +261,52 @@ app.post('/create_groups', (req, res) => {
   const subscribeValue = subscribe ? 1 : 0;
   console.log('Invalid password3');
   const result = db.prepare('INSERT INTO groups (name, detail, email, subscribe, subscribe_from) VALUES (?, ?, ?, ?, ?)').run(name, detail, email, subscribeValue, JSON.stringify(subscribe_from));
-  make_group_password(result.lastInsertRowid);
-    const new_group_password = db.prepare('SELECT * FROM groups_passwords WHERE group_id = ?').get(result.lastInsertRowid);
+  console.log('Invalid password3-2');
+  // generate_random_passwordでランダムなパスワードを生成して
+  const new_group_password = {
+    group_id: result.lastInsertRowid,
+    password: generate_random_password(),
+  };
+  console.log('Invalid password3-3');
+  console.log(new_group_password);
+  db.prepare('INSERT INTO groups_passwords (group_id, password) VALUES (?, ?)').run(new_group_password.group_id, new_group_password.password);
   console.log('Invalid password4');
-  res.json({ id: result.lastInsertRowid,
+
+  // 新規作成したid,password,を登録したemailに送るasync関数
+  async function send_new_id_password_to_new_email() {
+    try {
+      const emailTemplate = `
+  新しいグループが作成されました。
+
+  グループID: ${new_group_password.group_id}
+  パスワード: ${new_group_password.password}
+
+  この情報を安全に保管してください。
+  `;
+
+      await transporter.sendMail({
+      from: '"HRシェア" <your_email@gmail.com>',
+      to: email,
+      subject: '新しいグループ作成のお知らせ',
+      text: emailTemplate,
+      });
+
+      console.log('新しいグループ情報をメールで送信しました');
+    } catch (error) {
+      console.error('新しいグループ情報のメール送信に失敗しました:', error);
+      throw new Error('Failed to send email with new group information.');
+    }
+  }
+  await send_new_id_password_to_new_email();
+  console.log('Invalid password5');
+
+
+  
+
+
+  res.json({ 
+            status: 'OK',
+            id: result.lastInsertRowid,
             password: new_group_password.password });
   } catch (error) {
     console.log("initializeのエラー");
@@ -468,6 +531,29 @@ console.log(emailTemplate);
   // });
 }
 );
+
+
+// id_passをチェックしてvalidならstatus: OKを返すpostエンドポイント
+app.post('/check_id_password', (req, res) => {
+  try {
+    const { group_id, password } = req.body;
+    console.log("check_id_password");
+    console.log(group_id, password);
+
+    const isValid = check_group_password(group_id, password);
+    if (isValid) {
+      console.log("check_id_password OK");
+      res.json({ status: 'OK' });
+    } else {
+      console.log("check_id_password NG");
+      res.status(403).json({ message: 'Invalid group ID or password' });
+    }
+  } catch (error) {
+    console.error('Error in check_id_password:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 
 function insert_request(group_id, profile_id, group_id_from) {
   const existingRequest = db.prepare(`
