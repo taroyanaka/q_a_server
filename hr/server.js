@@ -1,5 +1,7 @@
-const IN_DEV = true;
-// const IN_DEV = false;
+// const IN_DEV = true;
+const IN_DEV = false;
+
+// Version 1.0.0
 
 const REQUEST_TIME_LIMIT_SEC = 30; // リクエストの時間制限（秒）
 
@@ -149,17 +151,14 @@ db.exec(`
     );
   `);
 
-  
+
+function make_sample_data_and_insert() {
   // 初期データ挿入
   const insertProfile = db.prepare('INSERT INTO profiles (id, name, bio, group_id, status) VALUES (?, ?, ?, ?, ?)');
-  // const insertGroup = db.prepare('INSERT INTO groups (id, name, detail, subscribe, subscribe_from) VALUES (?, ?, ?, ?, ?)');
-  // emailを追加
   const insertGroup = db.prepare('INSERT INTO groups (id, name, detail, email, subscribe, subscribe_from) VALUES (?, ?, ?, ?, ?, ?)');
-
   // requestsテーブルのサンプルデータを1レコード追加
   const insertRequest = db.prepare('INSERT INTO requests (group_id, profile_id, group_id_from, created_at) VALUES (?, ?, ?, ?)');
-  
-  let profiles_data = [
+  const profiles_data = [
       {"id": 1, "name": "悠斗","bio": "教師,研究者","group": 2,"status": "NG"},
       {"id": 2, "name": "健太","bio": "アーティスト,音楽家","group": 1,"status": "OK"},
       {"id": 3, "name": "萌","bio": "エンジニア,デザイナー","group": 3,"status": "OK"},
@@ -176,20 +175,18 @@ db.exec(`
       {"id": 14, "name": "美咲","bio": "エンジニア,デザイナー","group": 2,"status": "NG"},
       {"id": 15, "name": "千尋","bio": "マーケティング,ライター","group": 1,"status": "NG"},
   ];
-
-    // emailを追加
-  let groups_data = [
+  // emailを追加
+  const groups_data = [
       { id: 1, name: 'グループ A', detail: '東京都渋谷区', email: process.env.FROM_EMAIL_ADDRESS, subscribe: 0, subscribe_from: JSON.stringify([2, 3]) },
       // プロセスエンヴのEMAIL_ADDRESSを使う
       { id: 2, name: 'グループ B', detail: '東京都新宿区', email: process.env.TO_EMAIL_ADDRESS, subscribe: 0, subscribe_from: JSON.stringify([1]) },
       { id: 3, name: 'グループ C', detail: '東京都港区', email: process.env.TO_EMAIL_ADDRESS, subscribe: 0, subscribe_from: JSON.stringify([1]) },
   ];
 
-  let requests_data = [
+  const requests_data = [
     { group_id: 1, profile_id: 2, group_id_from: 3, created_at: '2023-10-01T12:00:00Z' },
   ];
-  
-// データを挿入
+  // データを挿入
   profiles_data.forEach((profile) => {
     insertProfile.run(profile.id, profile.name, profile.bio, profile.group, profile.status);
   });
@@ -201,9 +198,12 @@ db.exec(`
   requests_data.forEach((request) => {
     insertRequest.run(request.group_id, request.profile_id, request.group_id_from, request.created_at);
   });
+  //   パスワードを設定
+  each_make_groups_passwords();
+};
 
-//   パスワードを設定
-    each_make_groups_passwords();
+// make_sample_data_and_insert();
+
 
   res.json({ message: 'Database initialized' });
 } catch (error) {
@@ -231,7 +231,30 @@ app.post('/profiles', (req, res) => {
 } catch (error) {
   console.log("initializeのエラー");
 }
+});
 
+
+app.post('/update_profiles', (req, res) => {
+    try {
+      if(IN_DEV===false){throw new Error('in dev false');  res.status(403).json({ message: error })};
+
+      const { id, name, bio, group_id, status, password } = req.body;
+      console.log(id, name, bio, group_id, status, password);
+
+      const error = check_group_password(group_id, password) ? null : 'Invalid password';
+      if (error) {
+        return res.status(403).json({ message: error });
+      }
+
+      db.prepare(
+        'UPDATE profiles SET name = ?, bio = ?, group_id = ?, status = ? WHERE id = ?'
+      ).run(name, bio, group_id, status, id);
+
+      res.json({ status: 'OK', message: 'Profile updated' });
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
 });
 
 app.get('/test', (req, res) => {
@@ -516,7 +539,7 @@ console.log(emailTemplate);
   });
 
   console.log('メール送信シーケンス完了2');
-  res.json({ success: true, message: `Email sent to ${to_email}` });
+  res.json({ success: true, message: `Email sent: リクエストメール送信完了` });
 } catch (error) {
   console.log("try catchのエラーでメール送信の処理失敗");
   console.error('メール送信エラー:', error);
@@ -641,7 +664,7 @@ const subject_data = 'HRシェアのお支払い請求のテストメールで�
     });
     console.log(2);
 
-    res.json({ success: true, message: `Email sent to ${to}` });
+    res.json({ success: true, message: `Email sent: メール送信完了` });
     console.log(3);
   } catch (error) {
     console.log(4);
