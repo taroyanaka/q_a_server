@@ -1,5 +1,5 @@
-// const IN_DEV = true;
-const IN_DEV = false;
+const IN_DEV = true;
+// const IN_DEV = false;
 
 const REQUEST_TIME_LIMIT_SEC = 30; // リクエストの時間制限（秒）
 
