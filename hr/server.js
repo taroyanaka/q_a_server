@@ -1,5 +1,5 @@
-// const IN_DEV = true;
-const IN_DEV = false;
+const IN_DEV = true;
+// const IN_DEV = false;
 
 // Version 1.0.0
 
@@ -44,6 +44,9 @@ app.use(cors());
 app.use(bodyParser.json());
 
 const db = new Database('./.data/hr.db');
+const rental_db = new Database('./.data/rental.db');
+
+
 app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
     console.log(`foo`);
@@ -202,7 +205,7 @@ function make_sample_data_and_insert() {
   each_make_groups_passwords();
 };
 
-// make_sample_data_and_insert();
+make_sample_data_and_insert();
 
 
   res.json({ message: 'Database initialized' });
@@ -337,15 +340,25 @@ app.post('/create_groups', async (req, res) => {
 });
 
 app.post('/profiles/delete', (req, res) => {
+  console.log('/profiles/delete');
   console.log(req.body.profile_id);
   console.log(req.body.group_id);
   console.log(req.body.password);
   const error = check_group_password(req.body.group_id, req.body.password) ? null : 'Invalid password';
+  console.log('1 /profiles/delete');
   if (error) {return res.status(403).json({ message: error }) };
+  console.log('2 /profiles/delete');
   db.prepare('DELETE FROM profiles WHERE id = ?').run(req.body.profile_id);
+  console.log('3 /profiles/delete');
+  const profiles = db.prepare('SELECT * FROM profiles').all();
+  console.log('4 /profiles/delete');
+
   res.json({
     status: 'OK',
-     message: 'Profile deleted' });
+     message: 'Profile deleted',
+    profiles: profiles,
+  });
+    
 });
 
 app.post('/groups/delete/:id', (req, res) => {
@@ -686,3 +699,207 @@ app.get('/delete_all_requests', (req, res) => {
 );
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// テーブル初期化
+rental_db.exec(`
+  CREATE TABLE IF NOT EXISTS rent_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE,
+    password TEXT
+  );
+  CREATE TABLE IF NOT EXISTS rent_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    owner_id INTEGER,
+    FOREIGN KEY(owner_id) REFERENCES rent_users(id)
+  );
+  CREATE TABLE IF NOT EXISTS rent_rentals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id INTEGER,
+    lender_id INTEGER,
+    borrower_id INTEGER,
+    status TEXT CHECK(status IN ('ongoing', 'returned')),
+    FOREIGN KEY(item_id) REFERENCES rent_items(id),
+    FOREIGN KEY(lender_id) REFERENCES rent_users(id),
+    FOREIGN KEY(borrower_id) REFERENCES rent_users(id)
+  );
+`);
+
+// ユーザー登録
+app.post('/create_rent_users', (req, res) => {
+  const { username, password } = req.body;
+  try {
+    rental_db.prepare('INSERT INTO rent_users (username, password) VALUES (?, ?)').run(username, password);
+    res.json({ success: true });
+  } catch {
+    res.status(400).json({ success: false, error: '登録失敗' });
+  }
+});
+
+// ログイン
+app.post('/rent_login', (req, res) => {
+  const { username, password } = req.body;
+  const user = rental_db.prepare('SELECT * FROM rent_users WHERE username = ? AND password = ?').get(username, password);
+  user ? res.json({ success: true, user }) : res.status(401).json({ success: false, error: '認証失敗' });
+});
+
+// アイテム登録
+app.post('/rent_items', (req, res) => {
+  const { name, owner_id } = req.body;
+  try {
+    rental_db.prepare('INSERT INTO rent_items (name, owner_id) VALUES (?, ?)').run(name, owner_id);
+    res.json({ success: true });
+  } catch {
+    res.status(400).json({ success: false, error: '登録失敗' });
+  }
+});
+
+// 全アイテム取得
+app.get('/rent_items', (req, res) => {
+  const items = rental_db.prepare('SELECT * FROM rent_items').all();
+  res.json(items);
+});
+
+// レンタル登録
+app.post('/create_rentals', (req, res) => {
+  const { item_id, lender_id, borrower_id } = req.body;
+  try {
+    rental_db.prepare(`
+      INSERT INTO rent_rentals (item_id, lender_id, borrower_id, status)
+      VALUES (?, ?, ?, 'ongoing')
+    `).run(item_id, lender_id, borrower_id);
+    res.json({ success: true });
+  } catch {
+    res.status(400).json({ success: false, error: 'レンタル登録失敗' });
+  }
+});
+
+// 全レンタル取得
+app.get('/rent_rentals', (req, res) => {
+  const rentals = rental_db.prepare(`
+    SELECT r.id, i.name AS item, l.username AS lender, b.username AS borrower, r.status
+    FROM rent_rentals r
+    JOIN rent_items i ON r.item_id = i.id
+    JOIN rent_users l ON r.lender_id = l.id
+    JOIN rent_users b ON r.borrower_id = b.id
+  `).all();
+  res.json(rentals);
+});
+
+// サンプルデータ挿入
+app.post('/rent_seed', (req, res) => {
+  try {
+    rental_db.transaction(() => {
+      // rental_db.prepare('DELETE FROM rent_rentals').run();
+      // rental_db.prepare('DELETE FROM rent_items').run();
+      // rental_db.prepare('DELETE FROM rent_users').run();
+      // drop table if exists
+      rental_db.prepare('DROP TABLE IF EXISTS rent_rentals').run();
+      rental_db.prepare('DROP TABLE IF EXISTS rent_items').run();
+      rental_db.prepare('DROP TABLE IF EXISTS rent_users').run();
+      rental_db.exec(`
+        CREATE TABLE IF NOT EXISTS rent_users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          username TEXT UNIQUE,
+          password TEXT
+        );
+        CREATE TABLE IF NOT EXISTS rent_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT,
+          owner_id INTEGER,
+          FOREIGN KEY(owner_id) REFERENCES rent_users(id)
+        );
+        CREATE TABLE IF NOT EXISTS rent_rentals (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          item_id INTEGER,
+          lender_id INTEGER,
+          borrower_id INTEGER,
+          status TEXT CHECK(status IN ('ongoing', 'returned')),
+          FOREIGN KEY(item_id) REFERENCES rent_items(id),
+          FOREIGN KEY(lender_id) REFERENCES rent_users(id),
+          FOREIGN KEY(borrower_id) REFERENCES rent_users(id)
+        );
+      `);
+
+
+      const insertUser = rental_db.prepare('INSERT INTO rent_users (username, password) VALUES (?, ?)');
+      insertUser.run('alice', 'pass123');
+      insertUser.run('bob', 'pass456');
+      insertUser.run('charlie', 'pass789');
+
+      const users = rental_db.prepare('SELECT * FROM rent_users').all();
+      const userMap = {};
+      users.forEach(u => userMap[u.username] = u.id);
+
+      const insertItem = rental_db.prepare('INSERT INTO rent_items (name, owner_id) VALUES (?, ?)');
+      insertItem.run('Laptop', userMap['alice']);
+      insertItem.run('Camera', userMap['alice']);
+      insertItem.run('Tent', userMap['bob']);
+
+      const items = rental_db.prepare('SELECT * FROM rent_items').all();
+      const laptop = items.find(i => i.name === 'Laptop');
+
+      rental_db.prepare(`
+        INSERT INTO rent_rentals (item_id, lender_id, borrower_id, status)
+        VALUES (?, ?, ?, 'ongoing')
+      `).run(laptop.id, userMap['alice'], userMap['bob']);
+    })();
+
+    res.json({ success: true, message: 'サンプルデータを挿入しました。' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: 'サンプルデータの挿入に失敗しました。' });
+  }
+});
+
+// load_rent_users(usersを呼び出すエンドポイント)
+app.get('/load_rent_users', (req, res) => {
+  // console.log('load_rent_users');
+  const users = rental_db.prepare('SELECT * FROM rent_users').all();
+  // console.log(users);
+  res.json(users);
+}
+);
