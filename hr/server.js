@@ -829,69 +829,29 @@ app.get('/rent_rentals', (req, res) => {
   res.json(rentals);
 });
 
-// サンプルデータ挿入
-app.post('/rent_seed', (req, res) => {
+// register_rental レンタル実行
+// const res = await fetch(`${this.endpoint}/register_rental`, {
+//   method: 'POST',
+//   headers: { 'Content-Type': 'application/json' },
+//   body: JSON.stringify({
+//     item_id: parseInt(this.selectedItemId),
+//     lender_id: this.currentUser.id,
+//     borrower_id: parseInt(this.selectedBorrowerId)
+//   })
+// });
+// const data = await res.json();
+// if (data.success) {
+app.post('/register_rental', (req, res) => {
+  const { item_id, lender_id, borrower_id } = req.body;
   try {
-    rental_db.transaction(() => {
-      // rental_db.prepare('DELETE FROM rent_rentals').run();
-      // rental_db.prepare('DELETE FROM rent_items').run();
-      // rental_db.prepare('DELETE FROM rent_users').run();
-      // drop table if exists
-      rental_db.prepare('DROP TABLE IF EXISTS rent_rentals').run();
-      rental_db.prepare('DROP TABLE IF EXISTS rent_items').run();
-      rental_db.prepare('DROP TABLE IF EXISTS rent_users').run();
-      rental_db.exec(`
-        CREATE TABLE IF NOT EXISTS rent_users (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          username TEXT UNIQUE,
-          password TEXT
-        );
-        CREATE TABLE IF NOT EXISTS rent_items (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT,
-          owner_id INTEGER,
-          FOREIGN KEY(owner_id) REFERENCES rent_users(id)
-        );
-        CREATE TABLE IF NOT EXISTS rent_rentals (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          item_id INTEGER,
-          lender_id INTEGER,
-          borrower_id INTEGER,
-          status TEXT CHECK(status IN ('ongoing', 'returned')),
-          FOREIGN KEY(item_id) REFERENCES rent_items(id),
-          FOREIGN KEY(lender_id) REFERENCES rent_users(id),
-          FOREIGN KEY(borrower_id) REFERENCES rent_users(id)
-        );
-      `);
-
-
-      const insertUser = rental_db.prepare('INSERT INTO rent_users (username, password) VALUES (?, ?)');
-      insertUser.run('alice', 'pass123');
-      insertUser.run('bob', 'pass456');
-      insertUser.run('charlie', 'pass789');
-
-      const users = rental_db.prepare('SELECT * FROM rent_users').all();
-      const userMap = {};
-      users.forEach(u => userMap[u.username] = u.id);
-
-      const insertItem = rental_db.prepare('INSERT INTO rent_items (name, owner_id) VALUES (?, ?)');
-      insertItem.run('Laptop', userMap['alice']);
-      insertItem.run('Camera', userMap['alice']);
-      insertItem.run('Tent', userMap['bob']);
-
-      const items = rental_db.prepare('SELECT * FROM rent_items').all();
-      const laptop = items.find(i => i.name === 'Laptop');
-
-      rental_db.prepare(`
-        INSERT INTO rent_rentals (item_id, lender_id, borrower_id, status)
-        VALUES (?, ?, ?, 'ongoing')
-      `).run(laptop.id, userMap['alice'], userMap['bob']);
-    })();
-
-    res.json({ success: true, message: 'サンプルデータを挿入しました。' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, error: 'サンプルデータの挿入に失敗しました。' });
+    rental_db.prepare(`
+      INSERT INTO rent_rentals (item_id, lender_id, borrower_id, status)
+      VALUES (?, ?, ?, 'ongoing')
+    `).run(item_id, lender_id, borrower_id);
+    res.json({ success: true, message: 'レンタルが登録されました。' });
+  } catch (error) {
+    console.error('レンタル登録エラー:', error);
+    res.status(500).json({ success: false, error: 'レンタル登録に失敗しました。' });
   }
 });
 
@@ -903,3 +863,21 @@ app.get('/load_rent_users', (req, res) => {
   res.json(users);
 }
 );
+
+
+//             <button @click="returnItem(rental.id)">返却</button> のためのエンドポイント
+// レンタル返却
+app.post('/return_rental', (req, res) => {
+  const { rental_id } = req.body;
+  try {
+    rental_db.prepare(`
+      UPDATE rent_rentals
+      SET status = 'returned'
+      WHERE id = ?
+    `).run(rental_id);
+    res.json({ success: true, message: 'レンタルを返却しました。' });
+  } catch (error) {
+    console.error('レンタル返却エラー:', error);
+    res.status(500).json({ success: false, error: 'レンタル返却に失敗しました。' });
+  }
+});
